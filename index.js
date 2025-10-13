@@ -1,5 +1,5 @@
 import express from 'express';
-import { Client, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType } from 'discord.js';
 import 'dotenv/config';
 
 const client = new Client({
