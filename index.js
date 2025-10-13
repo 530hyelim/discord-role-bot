@@ -30,6 +30,12 @@ const description = '🎮 게이머\n💼 취준스터디';
 client.once('ready', async () => {
     console.log(`🤖 로그인 완료: ${client.user.tag}`);
 
+    // "플레이중" 상태 설정
+    client.user.setPresence({
+        activities: [{ name: 'Lost Ark', type: ActivityType.Playing }],
+        status: 'idle', // online, idle, dnd, invisible
+    });
+
     const guild = client.guilds.cache.get(GUILD_ID);
     if (!guild) return console.log('⚠️ 서버를 찾을 수 없습니다.');
 
