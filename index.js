@@ -1,9 +1,5 @@
-import {
-    Client,
-    GatewayIntentBits,
-    Partials,
-    EmbedBuilder,
-} from 'discord.js';
+import express from 'express';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
 import 'dotenv/config';
 
 const client = new Client({
@@ -21,7 +17,7 @@ const TOKEN = process.env.TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const ROLE_CHANNEL_ID = process.env.ROLE_CHANNEL_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
-const roleMessageId = process.env.ROLE_MESSAGE_ID || '';
+let roleMessageId = process.env.ROLE_MESSAGE_ID || '';
 
 // 기본 이모지 → 역할 매핑
 let reactionRoles = {
@@ -105,5 +101,20 @@ async function handleReaction(reaction, user, add) {
 client.on('messageReactionAdd', (reaction, user) => handleReaction(reaction, user, true));
 client.on('messageReactionRemove', (reaction, user) => handleReaction(reaction, user, false));
 
-// 봇 로그인
 client.login(TOKEN);
+
+// Express 서버
+const app = express();
+app.get('/', (req, res) => res.send('Bot is alive!'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
+
+// Self-ping
+const REPL_URL = process.env.REPL_URL;
+if (REPL_URL) {
+    setInterval(() => {
+        fetch(REPL_URL)
+            .then(() => console.log('⏱ Pinged server to stay alive'))
+            .catch(err => console.log('⚠️ Ping failed:', err));
+    }, 60000); // 1분
+}
