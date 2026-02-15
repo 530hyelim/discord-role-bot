@@ -1,6 +1,12 @@
-import express from 'express';
-import { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType } from 'discord.js';
-import 'dotenv/config';
+import fs from 'fs';
+import cron from 'node-cron';
+import { startCrons } from './crons.js';
+import { sendError } from './sendError.js';
+import { handleCommand } from './commandHandler.js';
+import { createClient } from '@supabase/supabase-js';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType, Collection } from 'discord.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const client = new Client({
     intents: [
@@ -8,9 +14,11 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent,
     ],
     partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
+client.commands = new Collection();
 
 // 설정
 const TOKEN = process.env.TOKEN;
@@ -18,6 +26,7 @@ const GUILD_ID = process.env.GUILD_ID;
 const ROLE_CHANNEL_ID = process.env.ROLE_CHANNEL_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 let roleMessageId = process.env.ROLE_MESSAGE_ID || '';
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // 기본 이모지 → 역할 매핑
 let reactionRoles = {
@@ -66,6 +75,9 @@ client.once('clientReady', async () => {
     } else {
         console.log(`✅ 기존 역할 선택 메시지 사용 (ID: ${roleMessageId})`);
     }
+
+    await loadCommands(); 
+    startCrons();
 });
 
 // 새 유저 입장 시 안내
@@ -104,23 +116,22 @@ async function handleReaction(reaction, user, add) {
     }
 }
 
+async function loadCommands() { 
+    const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); 
+    for (const file of commandFiles) { 
+        try { const { default: command } = await import(`./commands/${file}`); 
+            client.commands.set(command.name, command); 
+        } catch (error) { 
+            console.error(`⚠️ 오류 발생: ${file} 명령어 로딩 중`, error); 
+        } 
+    } 
+    console.log("✅ 모든 명령어가 로드되었습니다.");
+}
+
+client.on('messageCreate', (message) => handleCommand(message, client));
 client.on('messageReactionAdd', (reaction, user) => handleReaction(reaction, user, true));
 client.on('messageReactionRemove', (reaction, user) => handleReaction(reaction, user, false));
 
 client.login(TOKEN);
 
-// Express 서버
-const app = express();
-app.get('/', (req, res) => res.send('Bot is alive!'));
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
-
-// Self-ping
-const REPL_URL = process.env.REPL_URL;
-if (REPL_URL) {
-    setInterval(() => {
-        fetch(REPL_URL)
-            .then(() => console.log('⏱ Pinged server to stay alive'))
-            .catch(err => console.log('⚠️ Ping failed:', err));
-    }, 60000); // 1분
-}
+export {supabase, client} ;
