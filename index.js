@@ -20,6 +20,7 @@ const client = new Client({
 client.commands = new Collection();
 
 // 설정
+const PORT = process.env.PORT || 10000;
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const ROLE_CHANNEL_ID = process.env.ROLE_CHANNEL_ID;
@@ -36,7 +37,7 @@ const description = '🎮 게이머\n💼 취준스터디';
 
 // 봇 로그인
 client.once('clientReady', async () => {
-    sendError(`🤖 로그인 완료: ${client.user.tag}`);
+    sendError(`🤖 로그인 완료: ${client.user.tag} (PORT: ${process.env.PORT})`);
 
     // "플레이중" 상태 설정
     client.user.setPresence({
@@ -135,6 +136,6 @@ client.login(TOKEN);
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(3000, () => sendError(`Web server running!`));
+app.listen(PORT, () => sendError(`Web server running!`));
 
 export {supabase, client} ;
