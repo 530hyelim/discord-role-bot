@@ -1,6 +1,7 @@
 import fs from 'fs';
+import express from 'express';
 import { startCrons } from './crons.js';
-import { handleCommand } from './commonFunc.js';
+import { sendError, handleCommand } from './commonFunc.js';
 import { createClient } from '@supabase/supabase-js';
 import { Client, GatewayIntentBits, Partials, EmbedBuilder, ActivityType, Collection } from 'discord.js';
 import dotenv from 'dotenv';
@@ -35,7 +36,7 @@ const description = '🎮 게이머\n💼 취준스터디';
 
 // 봇 로그인
 client.once('clientReady', async () => {
-    console.log(`🤖 로그인 완료: ${client.user.tag}`);
+    sendError(`🤖 로그인 완료: ${client.user.tag}`);
 
     // "플레이중" 상태 설정
     client.user.setPresence({
@@ -44,10 +45,10 @@ client.once('clientReady', async () => {
     });
 
     const guild = client.guilds.cache.get(GUILD_ID);
-    if (!guild) return console.log('⚠️ 서버를 찾을 수 없습니다.');
+    if (!guild) return sendError('⚠️ 서버를 찾을 수 없습니다.');
 
     const channel = guild.channels.cache.get(ROLE_CHANNEL_ID);
-    if (!channel) return console.log('⚠️ 역할 선택 채널을 찾을 수 없습니다.');
+    if (!channel) return sendError('⚠️ 역할 선택 채널을 찾을 수 없습니다.');
 
     // 역할 선택 메시지 생성 또는 가져오기
     let message;
@@ -69,9 +70,9 @@ client.once('clientReady', async () => {
         }
 
         roleMessageId = message.id;
-        console.log(`✅ 역할 선택 메시지 생성 완료 (ID: ${roleMessageId})`);
+        sendError(`✅ 역할 선택 메시지 생성 완료 (ID: ${roleMessageId})`);
     } else {
-        console.log(`✅ 기존 역할 선택 메시지 사용 (ID: ${roleMessageId})`);
+        sendError(`✅ 기존 역할 선택 메시지 사용 (ID: ${roleMessageId})`);
     }
 
     await loadCommands(); 
@@ -88,7 +89,7 @@ client.on('guildMemberAdd', async (member) => {
             `아래 메시지에서 원하는 역할의 이모지를 눌러주세요!`
         );
     } catch (err) {
-        console.log(`⚠️ ${member.user.tag}님에게 DM을 보낼 수 없습니다.`, err);
+        sendError(`⚠️ ${member.user.tag}님에게 DM을 보낼 수 없습니다.`, err);
     }
 });
 
@@ -120,10 +121,10 @@ async function loadCommands() {
         try { const { default: command } = await import(`./commands/${file}`); 
             client.commands.set(command.name, command); 
         } catch (error) { 
-            console.error(`⚠️ 오류 발생: ${file} 명령어 로딩 중`, error); 
+            sendError(`⚠️ 오류 발생: ${file} 명령어 로딩 중`, error); 
         } 
     } 
-    console.log("✅ 모든 명령어가 로드되었습니다.");
+    sendError("✅ 모든 명령어가 로드되었습니다.");
 }
 
 client.on('messageCreate', (message) => handleCommand(message, client));
@@ -131,5 +132,9 @@ client.on('messageReactionAdd', (reaction, user) => handleReaction(reaction, use
 client.on('messageReactionRemove', (reaction, user) => handleReaction(reaction, user, false));
 
 client.login(TOKEN);
+
+const app = express();
+app.get('/', (req, res) => res.send('Bot is alive!'));
+app.listen(3000, () => sendError(`Web server running!`));
 
 export {supabase, client} ;
