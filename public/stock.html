@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goofy Bot</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; background: linear-gradient(165deg, #0d1117 0%, #161b22 50%, #21262d 100%); font-family: 'Outfit', sans-serif; color: #e6edf3; padding: 20px; padding-top: 90px; }
+        .container { max-width: 570px; margin: 0 auto; }
+        .game-top { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; padding: 14px 20px; background: rgba(0,0,0,0.85); z-index: 10; }
+        .game-top a { padding: 8px 14px; border-radius: 10px; background: #21262d; color: #e6edf3; text-decoration: none; font-size: 0.9rem; font-weight: 600; border: 1px solid #30363d; }
+        .game-top a:hover { background: #30363d; }
+        .game-top .login-info { font-size: 0.9rem; color: #8b949e; }
+        .game-top .top-points { font-size: 0.9rem; color: #58a6ff; font-weight: 600; }
+        .game-top .top-points.token-expired { color: #f85149; }
+        h1 { font-size: 1.5rem; margin-bottom: 4px; color: #58a6ff; }
+        .sub { font-size: 0.85rem; color: #8b949e; margin-bottom: 20px; }
+        .card { background: #21262d; border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid #30363d; }
+        .card h2 { font-size: 0.95rem; color: #8b949e; margin-bottom: 12px; }
+        .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .row:last-child { margin-bottom: 0; }
+        .badge { background: #238636; color: #fff; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+        .badge.wallet { background: #1f6feb; }
+        .badge.points { background: #8957e5; }
+        input, button { font-family: inherit; font-size: 0.9rem; padding: 6px 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #e6edf3; }
+        input { flex: 1; min-width: 80px; }
+        button { cursor: pointer; border: none; color: #fff; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.secondary { background: #21262d; color: #58a6ff; border: 1px solid #30363d; }
+        button.secondary:hover { background: #30363d; }
+        .icon-btn { padding: 6px 10px; font-size: 1rem; line-height: 1; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #30363d; }
+        th { color: #8b949e; font-weight: 600; }
+        #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.4); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0.25s; pointer-events: none; }
+        #toast.show { opacity: 1; visibility: visible; }
+        #toast.toast-ok { background: #238636; color: #fff; }
+        #toast.toast-err { background: #da3633; color: #fff; }
+        .tab-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .tab { padding: 6px 12px; font-size: 0.9rem; border-radius: 8px; background: #21262d; border: 1px solid #30363d; color: #8b949e; cursor: pointer; }
+        .tab.active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+        #prices-table td:nth-child(2) { font-weight: 600; }
+        #prices-table tr.price-afford td:nth-child(2) { color: #3fb950; }
+        #prices-table tr.price-no-afford td:nth-child(2) { color: #f85149; }
+        #prices-table td.chg-up { color: #3fb950; font-weight: 600; }
+        #prices-table td.chg-down { color: #f85149; font-weight: 600; }
+        .portfolio-profit { color: #3fb950; font-weight: 600; }
+        .portfolio-loss { color: #f85149; font-weight: 600; }
+        #prices-table th:nth-child(6), #prices-table th:nth-child(7), #prices-table td:nth-child(6), #prices-table td:nth-child(7) { text-align: center; }
+        #portfolio-table th:nth-child(6), #portfolio-table th:nth-child(7), #portfolio-table td:nth-child(6), #portfolio-table td:nth-child(7) { text-align: center; }
+        .prices-controls { display: flex; flex-wrap: wrap; flex-direction:row; justify-content:space-between; align-items:flex-start; }
+        .th-sort { margin-left: 4px; padding: 2px 6px; border: none; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.85rem; border-radius: 4px; }
+        .th-sort:hover { color: #e6edf3; background: #30363d; }
+        .th-sort.active { color: #58a6ff; }
+        .pagination { display: flex; justify-content:center; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.9rem; color: #8b949e; }
+        .pagination button { padding: 6px 12px; font-size: 0.85rem; }
+        .pagination .page-info { margin: 0 4px; }
+        .chart-wrap { position: relative; height: 260px; margin-top: 8px; }
+        .trade-symbol-wrap, .chart-symbol-wrap { position: relative; flex: 1; min-width: 80px; }
+        .trade-symbol-wrap input, .chart-symbol-wrap input { width: 100%; }
+        .chart-symbol-wrap { flex: 0; min-width: 120px; margin-bottom: 10px; }
+        .chart-symbol-wrap input[readonly] { cursor: pointer; }
+        .symbol-dropdown { position: absolute; left: 0; right: 0; margin-top: 4px; max-height: 240px; overflow-y: auto; background: #161b22; border: 1px solid #30363d; border-radius: 8px; z-index: 20; display: none; }
+        .symbol-dropdown.show { display: block; }
+        .symbol-dropdown.open-below { top: 100%; }
+        .symbol-dropdown.open-above { bottom: 100%; margin-top: 0; margin-bottom: 4px; }
+        .symbol-dropdown span { display: block; padding: 8px 12px; cursor: pointer; font-size: 0.9rem; border-bottom: 1px solid #30363d; }
+        .symbol-dropdown span:last-child { border-bottom: none; }
+        .symbol-dropdown span:hover { background: #30363d; }
+        .symbol-dropdown::-webkit-scrollbar { width: 8px; }
+        .symbol-dropdown::-webkit-scrollbar-button { display: none; }
+        .symbol-dropdown::-webkit-scrollbar-track { background: #0d1117; border-radius: 4px; }
+        .symbol-dropdown::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        .symbol-dropdown::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        .symbol-dropdown { scrollbar-color: #30363d #0d1117; scrollbar-width: thin; }
+        .prices-chart-btn, .prices-select-btn { cursor:pointer; }
+        </style>
+</head>
+<body>
+    <div class="game-top">
+        <a id="back-to-main" href="/game">HOME</a>
+        <span class="login-info" id="login-info"></span>
+        <span class="top-points" id="top-points"></span>
+    </div>
+    <div class="container">
+        <h1>📈 GOOFYDAQ 구피닥</h1>
+        <p class="sub">Yahoo Finance 기준 시세 (캐시 5분)</p>
+
+        <div class="card">
+            <h2>입금 / 출금</h2>
+            <div class="row">
+                <input type="number" id="deposit-amount" placeholder="입금할 포인트" min="1" />
+                <button id="btn-deposit" class="secondary">입금</button>
+                <button id="btn-deposit-all" class="secondary">전액 입금</button>
+            </div>
+            <div class="row">
+                <input type="number" id="withdraw-amount" placeholder="출금할 금액" min="1" />
+                <button id="btn-withdraw" class="secondary">출금</button>
+                <button id="btn-withdraw-all" class="secondary">전액 출금</button>
+            </div>
+        </div>
+
+        <div class="tab-row">
+            <span class="tab active" data-tab="prices">시세</span>
+            <span class="tab" data-tab="chart">차트</span>
+            <span class="tab" data-tab="portfolio">내 종목</span>
+        </div>
+
+        <div class="card" id="panel-prices">
+            <div class="prices-controls">
+                <div>
+                    <h2>종목 시세</h2>
+                    <p class="sub">매수/매도 시 현재 시세 적용</p>
+                </div>
+            </div>
+            <table id="prices-table">
+                <thead>
+                    <tr>
+                        <th>종목 <button type="button" class="th-sort" id="sort-name-btn" data-col="name" title="정렬">↕</button></th>
+                        <th>현재가 <button type="button" class="th-sort" id="sort-price-btn" data-col="price" title="정렬">↕</button></th>
+                        <th>고가</th>
+                        <th>저가</th>
+                        <th>변동률</th>
+                        <th>선택</th>
+                        <th>차트</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="pagination" id="prices-pagination">
+                <button type="button" class="secondary" id="prices-prev">이전</button>
+                <span class="page-info" id="prices-page-info"></span>
+                <button type="button" class="secondary" id="prices-next">다음</button>
+            </div>
+        </div>
+
+        <div class="card" id="panel-chart" style="display:none">
+            <div style="display:flex; flex-direction: row; justify-content: space-between;">
+                <div>
+                    <h2>종목 시세 차트</h2>
+                    <p class="sub" style="margin-bottom:10px">최근 약 3개월 일봉 (Yahoo Finance)</p>
+                </div>
+                <div class="chart-symbol-wrap">
+                    <input type="text" id="chart-symbol-trigger" readonly placeholder="종목 선택" autocomplete="off" />
+                    <div class="symbol-dropdown" id="chart-symbol-dropdown"></div>
+                </div>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="price-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" id="panel-portfolio" style="display:none">
+            <h2>보유 종목</h2>
+            <table id="portfolio-table">
+                <thead><tr><th>종목</th><th>수량</th><th>평균단가</th><th>현재가</th><th>이익률</th><th>선택</th><th>차트</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <p id="portfolio-empty" style="display:none;color:#8b949e">보유 종목이 없어요</p>
+        </div>
+
+        <div class="card">
+            <h2>매수 / 매도</h2>
+            <div class="row">
+                <div class="trade-symbol-wrap">
+                    <input type="text" id="trade-symbol" placeholder="종목코드" autocomplete="off" />
+                    <div class="symbol-dropdown" id="symbol-dropdown"></div>
+                </div>
+                <input type="number" id="trade-shares" placeholder="수량" min="1" style="max-width:100px" />
+                <button id="btn-buy" class="secondary">매수</button>
+                <button id="btn-sell" class="secondary">매도</button>
+            </div>
+        </div>
+    </div>
+    <div id="toast"></div>
+
+    <script>
+        (function () {
+            const params = new URLSearchParams(location.search);
+            const token = params.get('token');
+            const API = '/game/stock/api';
+            var backEl = document.getElementById('back-to-main');
+            if (backEl) backEl.href = token ? '/game?token=' + encodeURIComponent(token) : '/game';
+
+            const topPointsEl = document.getElementById('top-points');
+            let currentTotalScore = null;
+            let currentWalletBalance = null;
+            function setTopPoints(totalScore, walletBalance, tokenExpired) {
+                currentTotalScore = totalScore;
+                currentWalletBalance = walletBalance;
+                if (totalScore == null || walletBalance == null) {
+                    topPointsEl.textContent = tokenExpired ? '토큰이 만료되었습니다' : '—';
+                    topPointsEl.classList.toggle('token-expired', !!tokenExpired);
+                    return;
+                }
+                topPointsEl.classList.remove('token-expired');
+                topPointsEl.textContent = '보유 ' + totalScore + ' P · 잔액 ' + walletBalance + ' P';
+            }
+            const depositAmount = document.getElementById('deposit-amount');
+            const withdrawAmount = document.getElementById('withdraw-amount');
+            const btnDeposit = document.getElementById('btn-deposit');
+            const btnDepositAll = document.getElementById('btn-deposit-all');
+            const btnWithdraw = document.getElementById('btn-withdraw');
+            const btnWithdrawAll = document.getElementById('btn-withdraw-all');
+            const pricesTbody = document.querySelector('#prices-table tbody');
+            const portfolioTbody = document.querySelector('#portfolio-table tbody');
+            const portfolioEmpty = document.getElementById('portfolio-empty');
+            const tradeSymbol = document.getElementById('trade-symbol');
+            const symbolDropdown = document.getElementById('symbol-dropdown');
+            const tradeShares = document.getElementById('trade-shares');
+            const btnBuy = document.getElementById('btn-buy');
+            const btnSell = document.getElementById('btn-sell');
+            let toastTimer = null;
+            function showToast(msg, isErr) {
+                const toast = document.getElementById('toast');
+                if (!toast) return;
+                if (toastTimer) clearTimeout(toastTimer);
+                toast.textContent = msg || '';
+                toast.className = isErr ? 'toast-err' : 'toast-ok';
+                toast.classList.add('show');
+                toastTimer = setTimeout(() => {
+                    toast.classList.remove('show');
+                    toastTimer = null;
+                }, 2500);
+            }
+
+            function openSymbolDropdown() {
+                const syms = (pricesData.symbols || []).filter(s => pricesData.prices[s] != null);
+                const q = (tradeSymbol.value || '').trim().toUpperCase();
+                const filtered = q ? syms.filter(s => s.toUpperCase().indexOf(q) !== -1) : syms;
+                symbolDropdown.innerHTML = filtered.slice(0, 100).map(s => {
+                    const span = document.createElement('span');
+                    span.textContent = s;
+                    span.dataset.symbol = s;
+                    return span;
+                }).map(span => span.outerHTML).join('');
+                symbolDropdown.classList.remove('open-above');
+                symbolDropdown.classList.add('open-below');
+                const rect = tradeSymbol.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - rect.bottom - 16;
+                const spaceAbove = rect.top - 16;
+                const openAbove = spaceBelow < 120 && spaceAbove > spaceBelow;
+                if (openAbove) {
+                    symbolDropdown.classList.remove('open-below');
+                    symbolDropdown.classList.add('open-above');
+                    symbolDropdown.style.maxHeight = Math.min(210, Math.max(80, spaceAbove)) + 'px';
+                } else {
+                    symbolDropdown.style.maxHeight = Math.min(210, Math.max(80, spaceBelow)) + 'px';
+                }
+                symbolDropdown.classList.add('show');
+                symbolDropdown.querySelectorAll('span').forEach(span => {
+                    span.addEventListener('click', () => {
+                        tradeSymbol.value = span.dataset.symbol;
+                        symbolDropdown.classList.remove('show');
+                        tradeSymbol.focus();
+                    });
+                });
+            }
+
+            tradeSymbol.addEventListener('focus', openSymbolDropdown);
+            tradeSymbol.addEventListener('input', openSymbolDropdown);
+            tradeSymbol.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') symbolDropdown.classList.remove('show');
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.trade-symbol-wrap')) symbolDropdown.classList.remove('show');
+            });
+
+            async function fetchJson(url, options = {}) {
+                const r = await fetch(url, options);
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data.error || r.statusText);
+                return data;
+            }
+
+            async function loadMe() {
+                if (!token) {
+                    setTopPoints(null, null);
+                    return;
+                }
+                try {
+                    const data = await fetchJson(`${API}/me?token=${encodeURIComponent(token)}`);
+                    setTopPoints(data.total_score, data.wallet_balance);
+                    var loginEl = document.getElementById('login-info');
+                    if (loginEl) loginEl.textContent = (data.guild_name || '서버') + ' · ' + (data.username || '?');
+                } catch (e) {
+                    setTopPoints(null, null, true);
+                }
+            }
+
+            const PAGE_SIZE = 5;
+            let pricesData = { symbols: [], prices: {}, names: {}, dayHighs: {}, dayLows: {}, changePercents: {} };
+            let pricesSortBy = 'name';
+            let pricesSortDir = 'asc';
+            let pricesPage = 0;
+            const KOREAN_NAMES = { 'AAPL': '애플', 'MSFT': '마이크로소프트', 'GOOGL': '알파벳(구글)', 'AMZN': '아마존', 'META': '메타', 'NVDA': '엔비디아', 'TSLA': '테슬라', 'BRK-B': '버크셔 해서웨이', 'JPM': 'JP모건', 'V': '비자', 'JNJ': '존슨앤존슨', 'WMT': '월마트', 'PG': 'P&G', 'MA': '마스터카드', 'HD': '홈디포', 'F': '포드', 'INTC': '인텔', 'AMD': 'AMD', 'GE': '제너럴일렉트릭', 'BAC': '뱅크오브아메리카', 'C': '시티그룹', 'AAL': '아메리칸항공', 'UAL': '유나이티드항공', 'NIO': '니오', 'XPEV': '샤오펑', 'PLTR': '팔란티어', 'SOFI': '소피', 'RIVN': '리비안', 'LCID': '루시드', 'SNAP': '스냅' };
+
+            function getSortedSymbols() {
+                const syms = pricesData.symbols.filter(s => pricesData.prices[s] != null);
+                if (pricesSortBy === 'name') {
+                    return pricesSortDir === 'asc' ? [...syms].sort((a, b) => a.localeCompare(b)) : [...syms].sort((a, b) => b.localeCompare(a));
+                }
+                if (pricesSortBy === 'price') {
+                    return pricesSortDir === 'asc'
+                        ? [...syms].sort((a, b) => (pricesData.prices[a] || 0) - (pricesData.prices[b] || 0))
+                        : [...syms].sort((a, b) => (pricesData.prices[b] || 0) - (pricesData.prices[a] || 0));
+                }
+                return syms;
+            }
+
+            function updateSortArrows() {
+                const nameBtn = document.getElementById('sort-name-btn');
+                const priceBtn = document.getElementById('sort-price-btn');
+                if (nameBtn) {
+                    nameBtn.textContent = pricesSortBy === 'name' ? (pricesSortDir === 'asc' ? '↑' : '↓') : '↕';
+                    nameBtn.classList.toggle('active', pricesSortBy === 'name');
+                }
+                if (priceBtn) {
+                    priceBtn.textContent = pricesSortBy === 'price' ? (pricesSortDir === 'asc' ? '↑' : '↓') : '↕';
+                    priceBtn.classList.toggle('active', pricesSortBy === 'price');
+                }
+            }
+
+            function renderPricesTable() {
+                const sorted = getSortedSymbols();
+                const total = sorted.length;
+                const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+                const page = Math.min(pricesPage, totalPages - 1);
+                pricesPage = page;
+                const start = page * PAGE_SIZE;
+                const slice = sorted.slice(start, start + PAGE_SIZE);
+
+                pricesTbody.innerHTML = '';
+                const walletNum = currentWalletBalance != null ? Number(currentWalletBalance) : NaN;
+                const wallet = Number.isFinite(walletNum) ? walletNum : null;
+                slice.forEach(sym => {
+                    const tr = document.createElement('tr');
+                    const price = pricesData.prices[sym];
+                    const priceNum = price != null ? Number(price) : null;
+                    if (wallet != null && priceNum != null) {
+                        tr.classList.add(wallet >= priceNum ? 'price-afford' : 'price-no-afford');
+                    }
+                    const apiName = (pricesData.names && pricesData.names[sym]) ? pricesData.names[sym] : '—';
+                    const displayName = KOREAN_NAMES[sym] || apiName;
+                    const titleText = (KOREAN_NAMES[sym] && apiName !== '—') ? (KOREAN_NAMES[sym] + ' (' + apiName + ')') : (displayName !== '—' ? displayName : '');
+                    const nameTitle = titleText.replace(/"/g, '&quot;');
+                    const high = pricesData.dayHighs && pricesData.dayHighs[sym] != null ? '$' + Number(pricesData.dayHighs[sym]).toFixed(2) : '—';
+                    const low = pricesData.dayLows && pricesData.dayLows[sym] != null ? '$' + Number(pricesData.dayLows[sym]).toFixed(2) : '—';
+                    const chg = pricesData.changePercents && pricesData.changePercents[sym] != null ? Number(pricesData.changePercents[sym]) : null;
+                    const chgStr = chg != null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—';
+                    const chgClass = chg != null ? (chg >= 0 ? 'chg-up' : 'chg-down') : '';
+                    tr.innerHTML = `<td title="${nameTitle}">${sym}</td><td>${price != null ? '$' + priceNum.toFixed(2) : '-'}</td><td>${high}</td><td>${low}</td><td class="${chgClass}">${chgStr}</td><td><a class="prices-select-btn" data-symbol="${sym}">📋</a></td><td><a class="prices-chart-btn" data-symbol="${sym}">📈</a></td>`;
+                    tr.querySelector('.prices-select-btn').onclick = () => {
+                        tradeSymbol.value = sym;
+                        tradeShares.value = 1;
+                    };
+                    tr.querySelector('.prices-chart-btn').onclick = () => {
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        const chartTab = document.querySelector('.tab[data-tab="chart"]');
+                        if (chartTab) chartTab.classList.add('active');
+                        document.getElementById('panel-prices').style.display = 'none';
+                        document.getElementById('panel-chart').style.display = 'block';
+                        document.getElementById('panel-portfolio').style.display = 'none';
+                        if (chartSymbolTrigger) chartSymbolTrigger.value = sym;
+                        loadChart(sym);
+                    };
+                    pricesTbody.appendChild(tr);
+                });
+
+                const prevBtn = document.getElementById('prices-prev');
+                const nextBtn = document.getElementById('prices-next');
+                const pageInfo = document.getElementById('prices-page-info');
+                prevBtn.disabled = page <= 0;
+                nextBtn.disabled = page >= totalPages - 1;
+                pageInfo.textContent = total === 0 ? '0건' : `${start + 1} - ${Math.min(start + PAGE_SIZE, total)} / ${total} 건`;
+            }
+
+            async function loadPrices() {
+                try {
+                    const data = await fetchJson(`${API}/prices`);
+                    pricesData = { symbols: data.symbols || [], prices: data.prices || {}, names: data.names || {}, dayHighs: data.dayHighs || {}, dayLows: data.dayLows || {}, changePercents: data.changePercents || {} };
+                    pricesPage = 0;
+                    renderPricesTable();
+                    const syms = pricesData.symbols || [];
+                    if (chartSymbolTrigger && chartSymbolDropdown && syms.length) {
+                        if (!chartSymbolDropdown.children.length) {
+                            chartSymbolDropdown.innerHTML = syms.map(s => `<span data-symbol="${s}">${s}</span>`).join('');
+                            chartSymbolTrigger.value = syms[0];
+                            chartSymbolDropdown.querySelectorAll('span').forEach(span => {
+                                span.addEventListener('click', () => {
+                                    chartSymbolTrigger.value = span.dataset.symbol;
+                                    chartSymbolDropdown.classList.remove('show');
+                                    loadChart(span.dataset.symbol);
+                                });
+                            });
+                        } else if (!chartSymbolTrigger.value) chartSymbolTrigger.value = syms[0];
+                    }
+                } catch (e) {
+                    pricesTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">시세 조회 실패</td></tr>';
+                }
+            }
+
+            (function initSortButtons() {
+                const nameBtn = document.getElementById('sort-name-btn');
+                const priceBtn = document.getElementById('sort-price-btn');
+                function sortBy(col) {
+                    if (pricesSortBy === col) {
+                        pricesSortDir = pricesSortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        pricesSortBy = col;
+                        pricesSortDir = 'asc';
+                    }
+                    pricesPage = 0;
+                    updateSortArrows();
+                    renderPricesTable();
+                }
+                if (nameBtn) nameBtn.addEventListener('click', () => sortBy('name'));
+                if (priceBtn) priceBtn.addEventListener('click', () => sortBy('price'));
+                updateSortArrows();
+            })();
+            document.getElementById('prices-prev').addEventListener('click', () => {
+                pricesPage = Math.max(0, pricesPage - 1);
+                renderPricesTable();
+            });
+            document.getElementById('prices-next').addEventListener('click', () => {
+                const sorted = getSortedSymbols();
+                const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+                pricesPage = Math.min(pricesPage + 1, totalPages - 1);
+                renderPricesTable();
+            });
+
+            async function loadPortfolio() {
+                if (!token) return;
+                try {
+                    const [portfolioRes, pricesRes] = await Promise.all([
+                        fetchJson(`${API}/portfolio?token=${encodeURIComponent(token)}`),
+                        fetchJson(`${API}/prices`),
+                    ]);
+                    const list = portfolioRes.portfolio || [];
+                    const prices = pricesRes.prices || {};
+                    portfolioEmpty.style.display = list.length ? 'none' : 'block';
+                    portfolioTbody.innerHTML = '';
+                    list.forEach(({ symbol, shares, avg_cost }) => {
+                        const currentPrice = prices[symbol];
+                        const priceStr = currentPrice != null ? '$' + Number(currentPrice).toFixed(2) : '-';
+                        const avg = Number(avg_cost);
+                        let rateStr = '-';
+                        let rateClass = '';
+                        if (currentPrice != null && avg > 0) {
+                            const rate = ((Number(currentPrice) - avg) / avg) * 100;
+                            rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '%';
+                            rateClass = rate >= 0 ? 'portfolio-profit' : 'portfolio-loss';
+                        }
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>${symbol}</td><td>${shares}</td><td>$${avg.toFixed(2)}</td><td>${priceStr}</td><td class="${rateClass}">${rateStr}</td><td><a href="#" class="secondary icon-btn" data-symbol="${symbol}" data-shares="${shares}" title="매수/매도에 넣기">📋</a></td><td><a href="#" class="secondary icon-btn portfolio-chart-btn" data-symbol="${symbol}" title="차트 보기">📈</a></td>`;
+                        tr.querySelector('a[data-shares]').onclick = (e) => {
+                            e.preventDefault();
+                            tradeSymbol.value = symbol;
+                            tradeShares.value = shares;
+                        };
+                        tr.querySelector('a.portfolio-chart-btn').onclick = (e) => {
+                            e.preventDefault();
+                            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                            const chartTab = document.querySelector('.tab[data-tab="chart"]');
+                            if (chartTab) chartTab.classList.add('active');
+                            document.getElementById('panel-prices').style.display = 'none';
+                            document.getElementById('panel-chart').style.display = 'block';
+                            document.getElementById('panel-portfolio').style.display = 'none';
+                            if (chartSymbolTrigger) chartSymbolTrigger.value = symbol;
+                            loadChart(symbol);
+                        };
+                        portfolioTbody.appendChild(tr);
+                    });
+                } catch (e) {
+                    portfolioTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">조회에 실패하였습니다...</td></tr>';
+                }
+            }
+
+            let priceChart = null;
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const t = tab.dataset.tab;
+                    document.getElementById('panel-prices').style.display = t === 'prices' ? 'block' : 'none';
+                    document.getElementById('panel-chart').style.display = t === 'chart' ? 'block' : 'none';
+                    document.getElementById('panel-portfolio').style.display = t === 'portfolio' ? 'block' : 'none';
+                    if (t === 'chart') loadChart(chartSymbolTrigger ? chartSymbolTrigger.value : '');
+                });
+            });
+
+            const chartSymbolTrigger = document.getElementById('chart-symbol-trigger');
+            const chartSymbolDropdown = document.getElementById('chart-symbol-dropdown');
+            const chartCanvas = document.getElementById('price-chart');
+
+            async function loadChart(symbol) {
+                if (!symbol) return;
+                try {
+                    const data = await fetchJson(`${API}/chart?symbol=${encodeURIComponent(symbol)}`);
+                    const labels = data.dates || [];
+                    const values = data.prices || [];
+                    if (priceChart) priceChart.destroy();
+                    priceChart = new Chart(chartCanvas, {
+                        type: 'line',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label: symbol + ' ($)',
+                                data: values,
+                                borderColor: '#58a6ff',
+                                backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                                fill: true,
+                                tension: 0.2,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { ticks: { color: '#8b949e', maxTicksLimit: 10 } },
+                                y: { ticks: { color: '#8b949e' } }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    if (priceChart) priceChart.destroy();
+                    priceChart = null;
+                }
+            }
+
+            if (chartSymbolTrigger) chartSymbolTrigger.addEventListener('click', () => chartSymbolDropdown.classList.toggle('show'));
+            document.addEventListener('click', (e) => {
+                if (chartSymbolDropdown && !e.target.closest('.chart-symbol-wrap')) chartSymbolDropdown.classList.remove('show');
+            });
+
+            btnDeposit.addEventListener('click', async () => {
+                const raw = (depositAmount.value || '').trim();
+                const amount = raw === '' ? 0 : Math.floor(Number(depositAmount.value));
+                if (!token) {
+                    showToast('로그인이 필요해요', true);
+                    return;
+                }
+                if (raw === '' || amount <= 0) {
+                    showToast('입금할 포인트를 입력해 주세요', true);
+                    return;
+                }
+                try {
+                    const data = await fetchJson(`${API}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
+                    setTopPoints(data.total_score, data.wallet_balance);
+                    depositAmount.value = '';
+                    showToast('입금 완료', false);
+                    renderPricesTable();
+                } catch (e) {
+                    showToast(e.message || '입금 실패', true);
+                }
+            });
+
+            btnDepositAll.addEventListener('click', async () => {
+                if (!token) {
+                    showToast('로그인이 필요해요', true);
+                    return;
+                }
+                const amount = (currentTotalScore != null && Number.isFinite(Number(currentTotalScore))) ? Math.floor(Number(currentTotalScore)) : 0;
+                if (amount <= 0) {
+                    showToast('보유 포인트가 없어요', true);
+                    return;
+                }
+                try {
+                    const data = await fetchJson(`${API}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
+                    setTopPoints(data.total_score, data.wallet_balance);
+                    depositAmount.value = '';
+                    showToast('전액 입금 완료', false);
+                    renderPricesTable();
+                } catch (e) {
+                    showToast(e.message || '입금 실패', true);
+                }
+            });
+
+            btnWithdraw.addEventListener('click', async () => {
+                const raw = (withdrawAmount.value || '').trim();
+                const amount = raw === '' ? null : Math.floor(Number(withdrawAmount.value));
+                if (!token) {
+                    showToast('로그인이 필요해요', true);
+                    return;
+                }
+                if (raw === '' || amount == null || amount <= 0) {
+                    showToast('출금할 금액을 입력해 주세요', true);
+                    return;
+                }
+                try {
+                    const data = await fetchJson(`${API}/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
+                    setTopPoints(data.total_score, data.wallet_balance);
+                    withdrawAmount.value = '';
+                    showToast('출금 완료', false);
+                    loadPortfolio();
+                    renderPricesTable();
+                } catch (e) {
+                    showToast(e.message || '출금 실패', true);
+                }
+            });
+
+            btnWithdrawAll.addEventListener('click', async () => {
+                if (!token) {
+                    showToast('로그인이 필요해요', true);
+                    return;
+                }
+                if (currentWalletBalance == null || Number(currentWalletBalance) <= 0) {
+                    showToast('출금할 잔액이 없어요', true);
+                    return;
+                }
+                try {
+                    const data = await fetchJson(`${API}/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+                    setTopPoints(data.total_score, data.wallet_balance);
+                    withdrawAmount.value = '';
+                    showToast('전액 출금 완료', false);
+                    loadPortfolio();
+                    renderPricesTable();
+                } catch (e) {
+                    showToast(e.message || '출금 실패', true);
+                }
+            });
+
+            function doTrade(isBuy) {
+                const symbol = (tradeSymbol.value || '').trim().toUpperCase();
+                const shares = Math.floor(Number(tradeShares.value));
+                if (!token || !symbol || shares <= 0) {
+                    showToast('종목과 수량을 입력해 주세요', true);
+                    return;
+                }
+                const endpoint = isBuy ? 'buy' : 'sell';
+                fetchJson(`${API}/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, symbol, shares }) })
+                    .then(() => {
+                        showToast(isBuy ? '매수 완료' : '매도 완료', false);
+                        tradeSymbol.value = '';
+                        tradeShares.value = '';
+                        loadPortfolio();
+                        loadMe().then(() => renderPricesTable());
+                    })
+                    .catch((e) => showToast(e.message || '실패', true));
+            }
+
+            btnBuy.addEventListener('click', () => doTrade(true));
+            btnSell.addEventListener('click', () => doTrade(false));
+
+            loadMe();
+            loadPrices();
+            loadPortfolio();
+        })();
+    </script>
+</body>
+</html>

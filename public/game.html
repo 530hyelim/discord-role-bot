@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goofy Bot</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; background: linear-gradient(165deg, #0f0f1a 0%, #1a1a2e 40%, #16213e 100%); font-family: 'Outfit', sans-serif; color: #e8e8e8; display: flex; flex-direction: column; align-items: center; padding: 20px; padding-top: 72px; }
+        h1 span { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; background: linear-gradient(90deg, #ffd93d, #ff9a3d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .sub { font-size: 0.85rem; color: #888; margin-top: 4px; margin-bottom: 16px; }
+        #game-wrap { border-radius: 16px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.4); background: #0d0d14; }
+        #game-canvas { display: block; background: radial-gradient(ellipse at 50% 0%, #1e2a4a 0%, #0d0d14 70%); }
+        .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,13,20,0.92); padding: 24px; text-align: center; }
+        .screen h2 { font-size: 1.4rem; margin-bottom: 12px; }
+        .screen p { color: #aaa; margin-bottom: 20px; max-width: 280px; }
+        .btn { padding: 12px 28px; font-size: 1rem; font-family: inherit; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg, #ffd93d, #ff9a3d); color: #1a1a2e; transition: transform 0.1s, box-shadow 0.2s; }
+        .btn:hover { transform: scale(1.05); box-shadow: 0 6px 24px rgba(255,217,61,0.35); }
+        .btn:active { transform: scale(0.98); }
+        #wrap { position: relative; width: 100%; max-width: 400px; }
+        .points-earned { font-size: 1.2rem; color: #ffd93d; font-weight: 700; margin: 8px 0; }
+        .err-msg { color: #ff6b6b; font-size: 0.9rem; margin-top: 8px; }
+        .game-top { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px; padding: 14px 20px; background: rgba(0,0,0,0.25); z-index: 10; }
+        .game-top a { padding: 8px 14px; border-radius: 10px; background: rgba(255,255,255,0.1); color: #e8e8e8; text-decoration: none; font-size: 0.9rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.15); }
+        .game-top a:hover { background: rgba(255,255,255,0.15); }
+        .game-top .login-info { font-size: 0.9rem; color: #aaa; }
+        .game-top .top-points { font-size: 0.9rem; color: #ffd93d; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="game-top">
+        <a id="back-to-main" href="#">HOME</a>
+        <span class="login-info" id="login-info"></span>
+        <span class="top-points" id="top-points">보유 — · 점수 0 점</span>
+    </div>
+    <h1>💸<span> 코인 캐처</span></h1>
+    <p class="sub">떨어지는 코인을 캐치해 포인트를 획득하세요</p>
+    <div id="wrap">
+        <canvas id="game-canvas" width="400" height="560"></canvas>
+        <div id="start-screen" class="screen">
+            <h2>READY?</h2>
+            <p>좌우 방향키(또는 터치)로 바를 움직여 코인을 받으세요. 60초 동안 최대한 많이!</p>
+            <button class="btn" id="btn-start">START</button>
+        </div>
+        <div id="end-screen" class="screen" style="display: none;">
+            <h2>TIME UP!</h2>
+            <p id="end-score-msg">점수: 0</p>
+            <p class="points-earned" id="points-earned"></p>
+            <p class="sub" id="new-total-msg"></p>
+            <button class="btn" id="btn-retry">REPLAY</button>
+            <p class="err-msg" id="err-msg"></p>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            const wrap = document.getElementById('wrap');
+            const startScreen = document.getElementById('start-screen');
+            const endScreen = document.getElementById('end-screen');
+            const btnStart = document.getElementById('btn-start');
+            const btnRetry = document.getElementById('btn-retry');
+            const topPointsEl = document.getElementById('top-points');
+            const pointsEarnedEl = document.getElementById('points-earned');
+            let currentTotalScore = null;
+
+            function setTopPoints(totalScore, liveScore) {
+                const s = liveScore == null ? 0 : liveScore;
+                if (totalScore == null || totalScore === undefined) {
+                    topPointsEl.textContent = '보유 — · 점수 ' + s + ' 점';
+                    return;
+                }
+                const p = (typeof totalScore === 'number') ? totalScore + ' P' : totalScore;
+                topPointsEl.textContent = '보유 ' + p + ' · 점수 ' + s + ' 점';
+            }
+            const endScoreMsg = document.getElementById('end-score-msg');
+            const newTotalMsg = document.getElementById('new-total-msg');
+            const errMsg = document.getElementById('err-msg');
+
+            const params = new URLSearchParams(location.search);
+            const token = params.get('token');
+            var backEl = document.getElementById('back-to-main');
+            if (backEl) backEl.href = token ? '/game?token=' + encodeURIComponent(token) : '/game';
+
+            const PADDLE_W = 80;
+            const PADDLE_H = 14;
+            const COIN_R = 14;
+            const COIN_SPEED = 2.2;
+            const SPAWN_INTERVAL = 700;
+            const GAME_DURATION_MS = 60000;
+
+            let paddleX = (canvas.width - PADDLE_W) / 2;
+            let keys = {};
+            let coins = [];
+            let score = 0;
+            let gameStartTime = 0;
+            let animId = 0;
+            let lastSpawn = 0;
+            let myPoints = 0;
+
+            function getPaddleY() { return canvas.height - PADDLE_H - 20; }
+
+            function drawPaddle() {
+                const y = getPaddleY();
+                const g = ctx.createLinearGradient(0, y, 0, y + PADDLE_H);
+                g.addColorStop(0, '#ffd93d');
+                g.addColorStop(1, '#e6a800');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                const r = 7;
+                ctx.moveTo(paddleX + r, y);
+                ctx.lineTo(paddleX + PADDLE_W - r, y);
+                ctx.quadraticCurveTo(paddleX + PADDLE_W, y, paddleX + PADDLE_W, y + r);
+                ctx.lineTo(paddleX + PADDLE_W, y + PADDLE_H - r);
+                ctx.quadraticCurveTo(paddleX + PADDLE_W, y + PADDLE_H, paddleX + PADDLE_W - r, y + PADDLE_H);
+                ctx.lineTo(paddleX + r, y + PADDLE_H);
+                ctx.quadraticCurveTo(paddleX, y + PADDLE_H, paddleX, y + PADDLE_H - r);
+                ctx.lineTo(paddleX, y + r);
+                ctx.quadraticCurveTo(paddleX, y, paddleX + r, y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            function drawCoin(c) {
+                ctx.save();
+                ctx.translate(c.x, c.y);
+                const g = ctx.createRadialGradient(-4, -4, 0, 0, 0, COIN_R);
+                g.addColorStop(0, '#fff9c4');
+                g.addColorStop(0.5, '#ffd93d');
+                g.addColorStop(1, '#b8860b');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(0, 0, COIN_R, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function spawnCoin() {
+                coins.push({
+                    x: COIN_R + Math.random() * (canvas.width - COIN_R * 2),
+                    y: -COIN_R * 2,
+                    r: COIN_R
+                });
+            }
+
+            function hitTest(c) {
+                const py = getPaddleY();
+                const px = paddleX;
+                if (c.y + c.r < py) return false;
+                if (c.y - c.r > py + PADDLE_H) return false;
+                if (c.x + c.r < px) return false;
+                if (c.x - c.r > px + PADDLE_W) return false;
+                return true;
+            }
+
+            function gameLoop(t) {
+                if (!gameStartTime) gameStartTime = t;
+                const elapsed = t - gameStartTime;
+                if (elapsed >= GAME_DURATION_MS) {
+                    endGame();
+                    return;
+                }
+
+                if (t - lastSpawn > SPAWN_INTERVAL) {
+                    spawnCoin();
+                    lastSpawn = t;
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const move = (keys['ArrowLeft'] ? -1 : 0) + (keys['ArrowRight'] ? 1 : 0);
+                paddleX = Math.max(0, Math.min(canvas.width - PADDLE_W, paddleX + move * 8));
+                drawPaddle();
+
+                const still = [];
+                for (const c of coins) {
+                    c.y += COIN_SPEED;
+                    if (hitTest(c)) score++;
+                    else if (c.y - c.r < canvas.height) still.push(c);
+                    drawCoin(c);
+                }
+                coins = still;
+                setTopPoints(currentTotalScore, score);
+                animId = requestAnimationFrame(gameLoop);
+            }
+
+            function endGame() {
+                cancelAnimationFrame(animId);
+                startScreen.style.display = 'none';
+                endScreen.style.display = 'flex';
+                endScoreMsg.textContent = '점수: ' + score;
+                pointsEarnedEl.textContent = '';
+                newTotalMsg.textContent = '';
+                errMsg.textContent = '';
+
+                if (!token) {
+                    pointsEarnedEl.textContent = 'Discord에서 /game 으로 들어오면 포인트가 적립돼요';
+                    return;
+                }
+
+                const pointsToAdd = Math.min(Math.floor(score / 10), 100);
+                if (pointsToAdd <= 0) {
+                    pointsEarnedEl.textContent = '이번에는 포인트가 적립되지 않았어요 (10점당 1포인트)';
+                    return;
+                }
+
+                fetchWithRetry('/game/api/score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, score })
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.error) throw new Error(data.error);
+                        pointsEarnedEl.textContent = '+' + data.added + ' 포인트 적립!';
+                        newTotalMsg.textContent = '총 포인트: ' + data.total_score;
+                        currentTotalScore = data.total_score;
+                        setTopPoints(data.total_score, score);
+                    })
+                    .catch(e => {
+                        errMsg.textContent = e.message || '연결 실패... 잠시 후 다시 시도해 주세요';
+                    });
+            }
+
+            function startGame() {
+                score = 0;
+                coins = [];
+                gameStartTime = 0;
+                lastSpawn = 0;
+                startScreen.style.display = 'none';
+                endScreen.style.display = 'none';
+                setTopPoints(currentTotalScore, 0);
+                requestAnimationFrame(gameLoop);
+            }
+
+            btnStart.addEventListener('click', startGame);
+            btnRetry.addEventListener('click', startGame);
+
+            document.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault(); });
+            document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+            function fetchWithRetry(url, options, retries = 3) {
+                const delay = (ms) => new Promise(r => setTimeout(r, ms));
+                return fetch(url, options).catch(err => {
+                    if (retries <= 0) throw err;
+                    return delay(2000).then(() => fetchWithRetry(url, options, retries - 1));
+                });
+            }
+
+            if (token) {
+                setTopPoints('…', 0);
+                fetchWithRetry('/game/api/me?token=' + encodeURIComponent(token))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.total_score !== undefined) {
+                            currentTotalScore = data.total_score;
+                            myPoints = data.total_score;
+                            setTopPoints(data.total_score, score);
+                        } else {
+                            setTopPoints('?', score);
+                        }
+                        var loginEl = document.getElementById('login-info');
+                        if (loginEl) loginEl.textContent = (data.guild_name || '서버') + ' · ' + (data.username || '?');
+                    })
+                    .catch(() => {
+                        setTopPoints('?', score);
+                        var loginEl = document.getElementById('login-info');
+                        if (loginEl) loginEl.textContent = '';
+                        console.warn('포인트 조회 실패... 잠시 후 새로고침해 주세요');
+                    });
+            } else {
+                setTopPoints(null, 0);
+            }
+        })();
+    </script>
+</body>
+</html>

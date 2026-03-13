@@ -1,5 +1,4 @@
 import fs from 'fs';
-import express from 'express';
 import { startCrons } from './services/crons.js';
 import { sendError, handleCommand, upsertGuildConfig, getGuildConfig, clearGuildConfigCache } from './utils/commonFunc.js';
 import { initReactionRoles, handleReaction } from './services/reactionRoles.js';
@@ -26,8 +25,7 @@ const client = new Client({
 client.slashCommands = new Collection();
 
 // 설정
-const PORT = process.env.PORT;
-const TOKEN = process.env.TOKEN;
+const TOKEN = process.env.TOKEN || 3000;
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 client.once('clientReady', async () => {
@@ -155,10 +153,25 @@ async function loadCommands() {
         } catch (error) {
             sendError(`⚠️ 전역 커맨드 등록 오류: ${error?.stack || error}`);
         }
+        // 길드별로도 등록 → 전역 지연 없이 즉시 보이게
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                const body = guild.ownerId === OWNER_ID && ownerOnlyCommandsData.length > 0
+                    ? [...publicCommandsData, ...ownerOnlyCommandsData]
+                    : publicCommandsData;
+                await rest.put(
+                    Routes.applicationGuildCommands(client.user.id, guild.id),
+                    { body }
+                );
+                await upsertGuildConfig(guild.id, guild.name);
+            } catch (error) {
+                sendError(`⚠️ 길드 커맨드 등록 오류 (${guild.name}): ${error?.stack || error}`, guild.id);
+            }
+        }
     }
 
-    // 길드 커맨드: 서버장이 최고관리자인 길드에만 /announce 등록
-    if (ownerOnlyCommandsData.length > 0) {
+    // 공용 명령 없이 owner 전용만 있을 때 (해당 길드에만 등록)
+    if (publicCommandsData.length === 0 && ownerOnlyCommandsData.length > 0) {
         for (const guild of client.guilds.cache.values()) {
             try {
                 if (guild.ownerId != OWNER_ID) continue;
@@ -228,9 +241,4 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(TOKEN);
-
-const app = express();
-app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(PORT, '0.0.0.0', () => console.log(`Web server running!`));
-
 export {supabase, client} ;
