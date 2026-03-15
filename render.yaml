@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: goofy-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        generateValue: true
+      - key: TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GAME_JWT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false

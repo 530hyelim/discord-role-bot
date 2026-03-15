@@ -77,6 +77,11 @@
         .symbol-dropdown::-webkit-scrollbar-thumb:hover { background: #484f58; }
         .symbol-dropdown { scrollbar-color: #30363d #0d1117; scrollbar-width: thin; }
         .prices-chart-btn, .prices-select-btn { cursor:pointer; }
+        .loading-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; z-index: 200; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s, visibility 0.2s; }
+        .loading-overlay.show { opacity: 1; visibility: visible; pointer-events: auto; }
+        .loading-spinner { width: 44px; height: 44px; border: 3px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: loading-spin 0.75s linear infinite; }
+        .loading-overlay span { font-size: 0.9rem; color: #8b949e; }
+        @keyframes loading-spin { to { transform: rotate(360deg); } }
         </style>
 </head>
 <body>
@@ -159,7 +164,7 @@
                 <thead><tr><th>종목</th><th>수량</th><th>평균단가</th><th>현재가</th><th>이익률</th><th>선택</th><th>차트</th></tr></thead>
                 <tbody></tbody>
             </table>
-            <p id="portfolio-empty" style="display:none;color:#8b949e">보유 종목이 없어요</p>
+            <p id="portfolio-empty" style="display:none;color:#8b949e;text-align:center;padding:15px;">보유 종목이 없어요...</p>
         </div>
 
         <div class="card">
@@ -176,6 +181,10 @@
         </div>
     </div>
     <div id="toast"></div>
+    <div id="loading-overlay" class="loading-overlay" aria-hidden="true">
+        <div class="loading-spinner"></div>
+        <span id="loading-text">불러오는 중...</span>
+    </div>
 
     <script>
         (function () {
@@ -214,6 +223,15 @@
             const btnBuy = document.getElementById('btn-buy');
             const btnSell = document.getElementById('btn-sell');
             let toastTimer = null;
+            function setLoading(show, text) {
+                const el = document.getElementById('loading-overlay');
+                const textEl = document.getElementById('loading-text');
+                if (el) {
+                    el.classList.toggle('show', !!show);
+                    el.setAttribute('aria-hidden', !show);
+                }
+                if (textEl && text != null) textEl.textContent = text || '불러오는 중...';
+            }
             function showToast(msg, isErr) {
                 const toast = document.getElementById('toast');
                 if (!toast) return;
@@ -326,12 +344,13 @@
 
             function renderPricesTable() {
                 const sorted = getSortedSymbols();
-                const total = sorted.length;
-                const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+                const totalSymbols = (pricesData.symbols || []).length;
+                const totalPages = Math.max(1, Math.ceil(totalSymbols / PAGE_SIZE));
                 const page = Math.min(pricesPage, totalPages - 1);
                 pricesPage = page;
                 const start = page * PAGE_SIZE;
                 const slice = sorted.slice(start, start + PAGE_SIZE);
+                const total = sorted.length;
 
                 pricesTbody.innerHTML = '';
                 const walletNum = currentWalletBalance != null ? Number(currentWalletBalance) : NaN;
@@ -375,13 +394,13 @@
                 const pageInfo = document.getElementById('prices-page-info');
                 prevBtn.disabled = page <= 0;
                 nextBtn.disabled = page >= totalPages - 1;
-                pageInfo.textContent = total === 0 ? '0건' : `${start + 1} - ${Math.min(start + PAGE_SIZE, total)} / ${total} 건`;
+                pageInfo.textContent = totalSymbols === 0 ? '0건' : `${start + 1} - ${Math.min(start + PAGE_SIZE, totalSymbols)} / ${totalSymbols} 건`;
             }
 
             async function loadPrices() {
                 try {
-                    const data = await fetchJson(`${API}/prices`);
-                    pricesData = { symbols: data.symbols || [], prices: data.prices || {}, names: data.names || {}, dayHighs: data.dayHighs || {}, dayLows: data.dayLows || {}, changePercents: data.changePercents || {} };
+                    const first = await fetchJson(`${API}/prices?offset=0&limit=${PAGE_SIZE}`);
+                    pricesData = { symbols: first.symbols || [], prices: first.prices || {}, names: first.names || {}, dayHighs: first.dayHighs || {}, dayLows: first.dayLows || {}, changePercents: first.changePercents || {} };
                     pricesPage = 0;
                     renderPricesTable();
                     const syms = pricesData.symbols || [];
@@ -401,6 +420,23 @@
                 } catch (e) {
                     pricesTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">시세 조회 실패</td></tr>';
                 }
+            }
+
+            async function ensurePricesForPage(page) {
+                const needed = (page + 1) * PAGE_SIZE;
+                const loaded = Object.keys(pricesData.prices || {}).length;
+                if (loaded >= needed) return;
+                const offset = loaded;
+                try {
+                    setLoading(true, '다음 페이지 불러오는 중...');
+                    const data = await fetchJson(`${API}/prices?offset=${offset}&limit=${PAGE_SIZE}`);
+                    pricesData.prices = { ...pricesData.prices, ...(data.prices || {}) };
+                    pricesData.names = { ...pricesData.names, ...(data.names || {}) };
+                    pricesData.dayHighs = { ...pricesData.dayHighs, ...(data.dayHighs || {}) };
+                    pricesData.dayLows = { ...pricesData.dayLows, ...(data.dayLows || {}) };
+                    pricesData.changePercents = { ...pricesData.changePercents, ...(data.changePercents || {}) };
+                } catch (e) {}
+                finally { setLoading(false); }
             }
 
             (function initSortButtons() {
@@ -425,55 +461,68 @@
                 pricesPage = Math.max(0, pricesPage - 1);
                 renderPricesTable();
             });
-            document.getElementById('prices-next').addEventListener('click', () => {
-                const sorted = getSortedSymbols();
-                const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-                pricesPage = Math.min(pricesPage + 1, totalPages - 1);
+            document.getElementById('prices-next').addEventListener('click', async () => {
+                const totalSymbols = (pricesData.symbols || []).length;
+                const totalPages = Math.max(1, Math.ceil(totalSymbols / PAGE_SIZE));
+                const nextPage = Math.min(pricesPage + 1, totalPages - 1);
+                if (nextPage === pricesPage) return;
+                await ensurePricesForPage(nextPage);
+                pricesPage = nextPage;
                 renderPricesTable();
             });
+
+            async function runInitialLoad() {
+                setLoading(true, '시세 불러오는 중...');
+                try {
+                    await loadPrices();
+                    await Promise.all([loadMe(), loadPortfolio()]);
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            function renderPortfolioTable(list, prices) {
+                portfolioEmpty.style.display = list.length ? 'none' : 'block';
+                portfolioTbody.innerHTML = '';
+                (list || []).forEach(({ symbol, shares, avg_cost }) => {
+                    const currentPrice = prices && prices[symbol];
+                    const priceStr = currentPrice != null ? '$' + Number(currentPrice).toFixed(2) : '-';
+                    const avg = Number(avg_cost);
+                    let rateStr = '-';
+                    let rateClass = '';
+                    if (currentPrice != null && avg > 0) {
+                        const rate = ((Number(currentPrice) - avg) / avg) * 100;
+                        rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '%';
+                        rateClass = rate >= 0 ? 'portfolio-profit' : 'portfolio-loss';
+                    }
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${symbol}</td><td>${shares}</td><td>$${avg.toFixed(2)}</td><td>${priceStr}</td><td class="${rateClass}">${rateStr}</td><td><a href="#" class="secondary icon-btn" data-symbol="${symbol}" data-shares="${shares}" title="매수/매도에 넣기">📋</a></td><td><a href="#" class="secondary icon-btn portfolio-chart-btn" data-symbol="${symbol}" title="차트 보기">📈</a></td>`;
+                    tr.querySelector('a[data-shares]').onclick = (e) => {
+                        e.preventDefault();
+                        tradeSymbol.value = symbol;
+                        tradeShares.value = shares;
+                    };
+                    tr.querySelector('a.portfolio-chart-btn').onclick = (e) => {
+                        e.preventDefault();
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        const chartTab = document.querySelector('.tab[data-tab="chart"]');
+                        if (chartTab) chartTab.classList.add('active');
+                        document.getElementById('panel-prices').style.display = 'none';
+                        document.getElementById('panel-chart').style.display = 'block';
+                        document.getElementById('panel-portfolio').style.display = 'none';
+                        if (chartSymbolTrigger) chartSymbolTrigger.value = symbol;
+                        loadChart(symbol);
+                    };
+                    portfolioTbody.appendChild(tr);
+                });
+            }
 
             async function loadPortfolio() {
                 if (!token) return;
                 try {
-                    const [portfolioRes, pricesRes] = await Promise.all([
-                        fetchJson(`${API}/portfolio?token=${encodeURIComponent(token)}`),
-                        fetchJson(`${API}/prices`),
-                    ]);
+                    const portfolioRes = await fetchJson(`${API}/portfolio?token=${encodeURIComponent(token)}`);
                     const list = portfolioRes.portfolio || [];
-                    const prices = pricesRes.prices || {};
-                    portfolioEmpty.style.display = list.length ? 'none' : 'block';
-                    portfolioTbody.innerHTML = '';
-                    list.forEach(({ symbol, shares, avg_cost }) => {
-                        const currentPrice = prices[symbol];
-                        const priceStr = currentPrice != null ? '$' + Number(currentPrice).toFixed(2) : '-';
-                        const avg = Number(avg_cost);
-                        let rateStr = '-';
-                        let rateClass = '';
-                        if (currentPrice != null && avg > 0) {
-                            const rate = ((Number(currentPrice) - avg) / avg) * 100;
-                            rateStr = (rate >= 0 ? '+' : '') + rate.toFixed(1) + '%';
-                            rateClass = rate >= 0 ? 'portfolio-profit' : 'portfolio-loss';
-                        }
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `<td>${symbol}</td><td>${shares}</td><td>$${avg.toFixed(2)}</td><td>${priceStr}</td><td class="${rateClass}">${rateStr}</td><td><a href="#" class="secondary icon-btn" data-symbol="${symbol}" data-shares="${shares}" title="매수/매도에 넣기">📋</a></td><td><a href="#" class="secondary icon-btn portfolio-chart-btn" data-symbol="${symbol}" title="차트 보기">📈</a></td>`;
-                        tr.querySelector('a[data-shares]').onclick = (e) => {
-                            e.preventDefault();
-                            tradeSymbol.value = symbol;
-                            tradeShares.value = shares;
-                        };
-                        tr.querySelector('a.portfolio-chart-btn').onclick = (e) => {
-                            e.preventDefault();
-                            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                            const chartTab = document.querySelector('.tab[data-tab="chart"]');
-                            if (chartTab) chartTab.classList.add('active');
-                            document.getElementById('panel-prices').style.display = 'none';
-                            document.getElementById('panel-chart').style.display = 'block';
-                            document.getElementById('panel-portfolio').style.display = 'none';
-                            if (chartSymbolTrigger) chartSymbolTrigger.value = symbol;
-                            loadChart(symbol);
-                        };
-                        portfolioTbody.appendChild(tr);
-                    });
+                    renderPortfolioTable(list, pricesData.prices || {});
                 } catch (e) {
                     portfolioTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">조회에 실패하였습니다...</td></tr>';
                 }
@@ -499,6 +548,7 @@
 
             async function loadChart(symbol) {
                 if (!symbol) return;
+                setLoading(true, '차트 불러오는 중...');
                 try {
                     const data = await fetchJson(`${API}/chart?symbol=${encodeURIComponent(symbol)}`);
                     const labels = data.dates || [];
@@ -530,6 +580,8 @@
                 } catch (e) {
                     if (priceChart) priceChart.destroy();
                     priceChart = null;
+                } finally {
+                    setLoading(false);
                 }
             }
 
@@ -549,14 +601,21 @@
                     showToast('입금할 포인트를 입력해 주세요', true);
                     return;
                 }
+                setLoading(true, '입금 처리 중...');
+                let toastMsg = null;
+                let toastErr = false;
                 try {
                     const data = await fetchJson(`${API}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
                     setTopPoints(data.total_score, data.wallet_balance);
                     depositAmount.value = '';
-                    showToast('입금 완료', false);
+                    toastMsg = '입금 완료';
                     renderPricesTable();
                 } catch (e) {
-                    showToast(e.message || '입금 실패', true);
+                    toastMsg = e.message || '입금 실패';
+                    toastErr = true;
+                } finally {
+                    setLoading(false);
+                    if (toastMsg != null) showToast(toastMsg, toastErr);
                 }
             });
 
@@ -570,14 +629,21 @@
                     showToast('보유 포인트가 없어요', true);
                     return;
                 }
+                setLoading(true, '전액 입금 처리 중...');
+                let toastMsg = null;
+                let toastErr = false;
                 try {
                     const data = await fetchJson(`${API}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
                     setTopPoints(data.total_score, data.wallet_balance);
                     depositAmount.value = '';
-                    showToast('전액 입금 완료', false);
+                    toastMsg = '전액 입금 완료';
                     renderPricesTable();
                 } catch (e) {
-                    showToast(e.message || '입금 실패', true);
+                    toastMsg = e.message || '입금 실패';
+                    toastErr = true;
+                } finally {
+                    setLoading(false);
+                    if (toastMsg != null) showToast(toastMsg, toastErr);
                 }
             });
 
@@ -592,15 +658,22 @@
                     showToast('출금할 금액을 입력해 주세요', true);
                     return;
                 }
+                setLoading(true, '출금 처리 중...');
+                let toastMsg = null;
+                let toastErr = false;
                 try {
                     const data = await fetchJson(`${API}/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, amount }) });
                     setTopPoints(data.total_score, data.wallet_balance);
                     withdrawAmount.value = '';
-                    showToast('출금 완료', false);
+                    toastMsg = '출금 완료';
                     loadPortfolio();
                     renderPricesTable();
                 } catch (e) {
-                    showToast(e.message || '출금 실패', true);
+                    toastMsg = e.message || '출금 실패';
+                    toastErr = true;
+                } finally {
+                    setLoading(false);
+                    if (toastMsg != null) showToast(toastMsg, toastErr);
                 }
             });
 
@@ -613,43 +686,56 @@
                     showToast('출금할 잔액이 없어요', true);
                     return;
                 }
+                setLoading(true, '전액 출금 처리 중...');
+                let toastMsg = null;
+                let toastErr = false;
                 try {
                     const data = await fetchJson(`${API}/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
                     setTopPoints(data.total_score, data.wallet_balance);
                     withdrawAmount.value = '';
-                    showToast('전액 출금 완료', false);
+                    toastMsg = '전액 출금 완료';
                     loadPortfolio();
                     renderPricesTable();
                 } catch (e) {
-                    showToast(e.message || '출금 실패', true);
+                    toastMsg = e.message || '출금 실패';
+                    toastErr = true;
+                } finally {
+                    setLoading(false);
+                    if (toastMsg != null) showToast(toastMsg, toastErr);
                 }
             });
 
-            function doTrade(isBuy) {
+            async function doTrade(isBuy) {
                 const symbol = (tradeSymbol.value || '').trim().toUpperCase();
                 const shares = Math.floor(Number(tradeShares.value));
                 if (!token || !symbol || shares <= 0) {
                     showToast('종목과 수량을 입력해 주세요', true);
                     return;
                 }
-                const endpoint = isBuy ? 'buy' : 'sell';
-                fetchJson(`${API}/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, symbol, shares }) })
-                    .then(() => {
-                        showToast(isBuy ? '매수 완료' : '매도 완료', false);
-                        tradeSymbol.value = '';
-                        tradeShares.value = '';
-                        loadPortfolio();
-                        loadMe().then(() => renderPricesTable());
-                    })
-                    .catch((e) => showToast(e.message || '실패', true));
+                setLoading(true, isBuy ? '매수 처리 중...' : '매도 처리 중...');
+                let toastMsg = null;
+                let toastErr = false;
+                try {
+                    const data = await fetchJson(`${API}/${isBuy ? 'buy' : 'sell'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, symbol, shares }) });
+                    toastMsg = isBuy ? '매수 완료' : '매도 완료';
+                    tradeSymbol.value = '';
+                    tradeShares.value = '';
+                    setTopPoints(data.total_score != null ? data.total_score : currentTotalScore, data.wallet_balance != null ? data.wallet_balance : currentWalletBalance);
+                    renderPortfolioTable(data.portfolio || [], pricesData.prices || {});
+                    renderPricesTable();
+                } catch (e) {
+                    toastMsg = e.message || '실패';
+                    toastErr = true;
+                } finally {
+                    setLoading(false);
+                    if (toastMsg != null) showToast(toastMsg, toastErr);
+                }
             }
 
             btnBuy.addEventListener('click', () => doTrade(true));
             btnSell.addEventListener('click', () => doTrade(false));
 
-            loadMe();
-            loadPrices();
-            loadPortfolio();
+            runInitialLoad();
         })();
     </script>
 </body>

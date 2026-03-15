@@ -26,6 +26,7 @@
         .game-top a:hover { background: rgba(255,255,255,0.15); }
         .game-top .login-info { font-size: 0.9rem; color: #aaa; }
         .game-top .top-points { font-size: 0.9rem; color: #ffd93d; font-weight: 600; }
+        .game-top .top-points.token-expired { color: #f85149; }
     </style>
 </head>
 <body>
@@ -44,7 +45,7 @@
             <button class="btn" id="btn-start">START</button>
         </div>
         <div id="end-screen" class="screen" style="display: none;">
-            <h2>TIME UP!</h2>
+            <h2>TIMES UP!</h2>
             <p id="end-score-msg">점수: 0</p>
             <p class="points-earned" id="points-earned"></p>
             <p class="sub" id="new-total-msg"></p>
@@ -66,7 +67,13 @@
             const pointsEarnedEl = document.getElementById('points-earned');
             let currentTotalScore = null;
 
-            function setTopPoints(totalScore, liveScore) {
+            function setTopPoints(totalScore, liveScore, tokenExpired) {
+                if (tokenExpired) {
+                    topPointsEl.textContent = '토큰이 만료되었습니다';
+                    topPointsEl.classList.add('token-expired');
+                    return;
+                }
+                topPointsEl.classList.remove('token-expired');
                 const s = liveScore == null ? 0 : liveScore;
                 if (totalScore == null || totalScore === undefined) {
                     topPointsEl.textContent = '보유 — · 점수 ' + s + ' 점';
@@ -257,8 +264,17 @@
             if (token) {
                 setTopPoints('…', 0);
                 fetchWithRetry('/game/api/me?token=' + encodeURIComponent(token))
-                    .then(r => r.json())
+                    .then(r => {
+                        if (!r.ok && (r.status === 401 || r.status === 403)) {
+                            setTopPoints(null, 0, true);
+                            var loginEl = document.getElementById('login-info');
+                            if (loginEl) loginEl.textContent = '';
+                            return null;
+                        }
+                        return r.json();
+                    })
                     .then(data => {
+                        if (data == null) return;
                         if (data.total_score !== undefined) {
                             currentTotalScore = data.total_score;
                             myPoints = data.total_score;
@@ -270,10 +286,9 @@
                         if (loginEl) loginEl.textContent = (data.guild_name || '서버') + ' · ' + (data.username || '?');
                     })
                     .catch(() => {
-                        setTopPoints('?', score);
+                        setTopPoints(null, 0, true);
                         var loginEl = document.getElementById('login-info');
                         if (loginEl) loginEl.textContent = '';
-                        console.warn('포인트 조회 실패... 잠시 후 새로고침해 주세요');
                     });
             } else {
                 setTopPoints(null, 0);
