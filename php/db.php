@@ -89,44 +89,36 @@ function get_db_last_error(): ?string {
     return $GLOBALS['_db_last_error'] ?? null;
 }
 
-/**
- * @param array<string, mixed> $params
- * @return array<string, mixed>|null
- */
-function fetch_one(string $sql, array $params = []): ?array {
+function fetch_one(string $sql): ?array {
     $db = get_db();
     if (!$db) {
         return null;
     }
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
+    $stmt = $db->query($sql);
+    if ($stmt === false) {
+        return null;
+    }
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row !== false ? $row : null;
 }
 
-/**
- * @param array<string, mixed> $params
- * @return list<array<string, mixed>>
- */
-function fetch_all(string $sql, array $params = []): array {
+function fetch_all(string $sql): array {
     $db = get_db();
     if (!$db) {
         return [];
     }
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
+    $stmt = $db->query($sql);
+    if ($stmt === false) {
+        return [];
+    }
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     return $rows !== false ? $rows : [];
 }
 
-/**
- * @param array<string, mixed> $params
- */
-function execute_sql(string $sql, array $params = []): void {
+function execute_sql(string $sql): void {
     $db = get_db();
     if (!$db) {
         return;
     }
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
+    $db->exec($sql);
 }

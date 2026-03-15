@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+require_once __DIR__ . '/../../common.php';
 
 $offset = isset($_GET['offset']) ? (int) $_GET['offset'] : null;
 $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : null;

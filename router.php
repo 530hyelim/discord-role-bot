@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 $projectRoot = __DIR__;
 require_once $projectRoot . '/vendor/autoload.php';
-require_once $projectRoot . '/php/db.php';
-require_once $projectRoot . '/php/utils/gameAuth.php';
+require_once $projectRoot . '/php/common.php';
 require_once $projectRoot . '/php/services/stockPrices.php';
-require_once $projectRoot . '/php/api/helpers.php';
 
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($uri, PHP_URL_PATH);
