@@ -153,6 +153,14 @@ async function loadCommands() {
         } catch (error) {
             sendError(`⚠️ 전역 커맨드 등록 오류: ${error?.stack || error}`);
         }
+        // 이전 길드 커맨드 제거
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), { body: [] });
+            } catch (error) {
+                sendError(`⚠️ 길드 커맨드 제거 오류 (${guild.name}): ${error?.stack || error}`, guild.id);
+            }
+        }
         // 로컬에서만 사용 (지연 방지)
         // for (const guild of client.guilds.cache.values()) {
         //     try {
