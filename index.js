@@ -153,21 +153,21 @@ async function loadCommands() {
         } catch (error) {
             sendError(`⚠️ 전역 커맨드 등록 오류: ${error?.stack || error}`);
         }
-        // 길드별로도 등록 → 전역 지연 없이 즉시 보이게
-        for (const guild of client.guilds.cache.values()) {
-            try {
-                const body = guild.ownerId === OWNER_ID && ownerOnlyCommandsData.length > 0
-                    ? [...publicCommandsData, ...ownerOnlyCommandsData]
-                    : publicCommandsData;
-                await rest.put(
-                    Routes.applicationGuildCommands(client.user.id, guild.id),
-                    { body }
-                );
-                await upsertGuildConfig(guild.id, guild.name);
-            } catch (error) {
-                sendError(`⚠️ 길드 커맨드 등록 오류 (${guild.name}): ${error?.stack || error}`, guild.id);
-            }
-        }
+        // 로컬에서만 사용 (지연 방지)
+        // for (const guild of client.guilds.cache.values()) {
+        //     try {
+        //         const body = guild.ownerId === OWNER_ID && ownerOnlyCommandsData.length > 0
+        //             ? [...publicCommandsData, ...ownerOnlyCommandsData]
+        //             : publicCommandsData;
+        //         await rest.put(
+        //             Routes.applicationGuildCommands(client.user.id, guild.id),
+        //             { body }
+        //         );
+        //         await upsertGuildConfig(guild.id, guild.name);
+        //     } catch (error) {
+        //         sendError(`⚠️ 길드 커맨드 등록 오류 (${guild.name}): ${error?.stack || error}`, guild.id);
+        //     }
+        // }
     }
 
     // 공용 명령 없이 owner 전용만 있을 때 (해당 길드에만 등록)
