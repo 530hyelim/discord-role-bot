@@ -5,7 +5,7 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
-        generateValue: true
+        value: 10000
       - key: TOKEN
         sync: false
       - key: SUPABASE_URL

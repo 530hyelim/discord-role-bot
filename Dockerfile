@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     php-cli php-json php-mbstring php-xml php-curl php-zip php-pgsql \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /opt/render/project/src
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
