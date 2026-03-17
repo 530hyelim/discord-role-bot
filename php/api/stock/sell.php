@@ -17,8 +17,8 @@ ensure_db();
 $payload = ensure_game_token($token);
 
 $sym = strtoupper((string) $symbol);
-$guildId = $payload->guild_id ?? '';
-$userId = $payload->user_id ?? '';
+$guildId = (string) ($payload->guild_id ?? '');
+$userId = (string) ($payload->user_id ?? '');
 
 $sql = "SELECT shares, avg_cost FROM stock_portfolio WHERE guild_id = '$guildId' AND user_id = '$userId' AND symbol = '$sym'";
 $row = fetch_one($sql);

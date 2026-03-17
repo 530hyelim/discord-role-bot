@@ -9,8 +9,8 @@ $token = $body['token'] ?? null;
 ensure_db();
 $payload = ensure_game_token($token);
 
-$guildId = $payload->guild_id ?? '';
-$userId = $payload->user_id ?? '';
+$guildId = (string) ($payload->guild_id ?? '');
+$userId = (string) ($payload->user_id ?? '');
 $username = $payload->username ?? '';
 
 $walletBalance = get_wallet_balance($guildId, $userId);

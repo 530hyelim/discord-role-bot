@@ -28,8 +28,8 @@ if ($price === null) {
     return;
 }
 
-$guildId = $payload->guild_id ?? '';
-$userId = $payload->user_id ?? '';
+$guildId = (string) ($payload->guild_id ?? '');
+$userId = (string) ($payload->user_id ?? '');
 $cost = round($price * $numShares * 100) / 100;
 $walletBalance = get_wallet_balance($guildId, $userId);
 

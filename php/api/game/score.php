@@ -21,8 +21,8 @@ if ($pointsToAdd <= 0) {
     return;
 }
 
-$guildId = $payload->guild_id ?? '';
-$userId = $payload->user_id ?? '';
+$guildId = (string) ($payload->guild_id ?? '');
+$userId = (string) ($payload->user_id ?? '');
 $username = $payload->username ?? '';
 
 $sql = "SELECT total_score, username FROM users WHERE guild_id = '$guildId' AND user_id = '$userId'";

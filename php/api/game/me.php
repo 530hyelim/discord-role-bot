@@ -6,8 +6,8 @@ $token = $_GET['token'] ?? null;
 ensure_db();
 $payload = ensure_game_token($token);
 
-$guildId = $payload->guild_id ?? '';
-$userId = $payload->user_id ?? '';
+$guildId = (string) ($payload->guild_id ?? '');
+$userId = (string) ($payload->user_id ?? '');
 $username = $payload->username ?? '';
 
 $sql = "SELECT username, total_score FROM users WHERE guild_id = '$guildId' AND user_id = '$userId'";
