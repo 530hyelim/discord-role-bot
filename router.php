@@ -34,6 +34,9 @@ if (isset($staticFiles[$path]) && is_file($staticFiles[$path])) {
 
 // API 라우팅
 $routes = [
+    'HEAD' => [
+        '/' => function () { http_response_code(200); }
+    ],
     'GET' => [
         '/' => function () { header('Content-Type: text/plain'); echo 'Bot is alive!'; },
         '/game/api/me' => __DIR__ . '/php/api/game/me.php',
