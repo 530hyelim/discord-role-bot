@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     php-cli php-json php-mbstring php-xml php-curl php-zip php-pgsql \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /opt/render/project/src
+WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
@@ -22,4 +22,4 @@ COPY . .
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["node", "start.js"]
+CMD ["node", "index.js"]

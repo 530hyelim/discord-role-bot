@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-$projectRoot = __DIR__;
-require_once $projectRoot . '/vendor/autoload.php';
-require_once $projectRoot . '/php/common.php';
-require_once $projectRoot . '/php/services/stockPrices.php';
+$projectRoot = dirname(__DIR__);
+require_once $projectRoot . '/web/common.php';
 
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($uri, PHP_URL_PATH);
@@ -15,7 +13,7 @@ parse_str($query, $queryParams);
 $hasToken = !empty(trim((string) ($queryParams['token'] ?? '')));
 
 // 정적 파일
-$publicDir = $projectRoot . '/public';
+$publicDir = $projectRoot . '/web/pages';
 $staticFiles = [
     '/game' => $publicDir . '/index.html',
     '/game/coin' => $publicDir . '/game.html',
@@ -39,18 +37,18 @@ $routes = [
     ],
     'GET' => [
         '/' => function () { header('Content-Type: text/plain'); echo 'Bot is alive!'; },
-        '/game/api/me' => __DIR__ . '/php/api/game/me.php',
-        '/game/stock/api/me' => __DIR__ . '/php/api/stock/me.php',
-        '/game/stock/api/portfolio' => __DIR__ . '/php/api/stock/portfolio.php',
-        '/game/stock/api/prices' => __DIR__ . '/php/api/stock/prices.php',
-        '/game/stock/api/chart' => __DIR__ . '/php/api/stock/chart.php',
+        '/game/api/me' => $projectRoot . '/web/api/game/me.php',
+        '/game/stock/api/me' => $projectRoot . '/web/api/stock/me.php',
+        '/game/stock/api/portfolio' => $projectRoot . '/web/api/stock/portfolio.php',
+        '/game/stock/api/prices' => $projectRoot . '/web/api/stock/prices.php',
+        '/game/stock/api/chart' => $projectRoot . '/web/api/stock/chart.php',
     ],
     'POST' => [
-        '/game/api/score' => __DIR__ . '/php/api/game/score.php',
-        '/game/stock/api/deposit' => __DIR__ . '/php/api/stock/deposit.php',
-        '/game/stock/api/withdraw' => __DIR__ . '/php/api/stock/withdraw.php',
-        '/game/stock/api/buy' => __DIR__ . '/php/api/stock/buy.php',
-        '/game/stock/api/sell' => __DIR__ . '/php/api/stock/sell.php',
+        '/game/api/score' => $projectRoot . '/web/api/game/score.php',
+        '/game/stock/api/deposit' => $projectRoot . '/web/api/stock/deposit.php',
+        '/game/stock/api/withdraw' => $projectRoot . '/web/api/stock/withdraw.php',
+        '/game/stock/api/buy' => $projectRoot . '/web/api/stock/buy.php',
+        '/game/stock/api/sell' => $projectRoot . '/web/api/stock/sell.php',
     ],
 ];
 

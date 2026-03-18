@@ -6,7 +6,7 @@ import { dirname } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
-const php = spawn('php', ['-S', `0.0.0.0:${PORT}`, 'router.php'], {
+const php = spawn('php', ['-S', `0.0.0.0:${PORT}`, 'web/router.php'], {
     cwd: __dirname,
     stdio: ['ignore', 'inherit', 'inherit'],
     env: { ...process.env },
@@ -38,4 +38,4 @@ await new Promise((r) => setTimeout(r, 1500));
 console.log(`PHP web server listening on port ${PORT}`);
 
 // Discord 봇 로드
-await import('./index.js');
+await import('./bot/index.js');

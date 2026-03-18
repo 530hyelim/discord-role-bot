@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/utils/gameAuth.php';
-require_once __DIR__ . '/api/helpers.php';
+require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../api/auth/gameAuth.php';
+require_once __DIR__ . '/helpers.php';
 
 function json_err(int $code, string $message): void {
     header('Content-Type: application/json; charset=utf-8');

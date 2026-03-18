@@ -7,10 +7,10 @@
     },
     "autoload": {
         "psr-4": {
-            "App\\": "php/"
+            "App\\": "web/"
         },
         "files": [
-            "php/bootstrap.php"
+            "web/bootstrap.php"
         ]
     }
 }

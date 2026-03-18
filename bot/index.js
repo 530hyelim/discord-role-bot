@@ -1,4 +1,6 @@
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { startCrons } from './services/crons.js';
 import { sendError, handleCommand, upsertGuildConfig, getGuildConfig, clearGuildConfigCache } from './utils/commonFunc.js';
 import { initReactionRoles, handleReaction } from './services/reactionRoles.js';
@@ -10,6 +12,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Client, GatewayIntentBits, Partials, Collection, REST, Routes, ChannelType, PermissionFlagsBits, OverwriteType } from 'discord.js';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const client = new Client({
     intents: [
@@ -122,13 +126,14 @@ client.on('guildMemberAdd', async (member) => {
 const OWNER_ID = '1363221777278304577';
 
 async function loadCommands() { 
-    const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); 
+    const commandsDir = path.join(__dirname, 'commands');
+    const commandFiles = fs.readdirSync(commandsDir).filter((file) => file.endsWith('.js')); 
     const publicCommandsData = [];
     const ownerOnlyCommandsData = [];
 
     for (const file of commandFiles) { 
         try { 
-            const { default: command } = await import(`./commands/${file}`); 
+            const { default: command } = await import(new URL(`./commands/${file}`, import.meta.url)); 
             if (command.data) {
                 client.slashCommands.set(command.data.name, command);
                 const json = command.data.toJSON();
