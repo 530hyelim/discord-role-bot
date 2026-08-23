@@ -1,4 +1,5 @@
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startCrons } from './services/crons.js';
@@ -254,4 +255,19 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(TOKEN);
+
+// UptimeRobot 등 외부 모니터링용 헬스체크 엔드포인트
+const HEALTH_PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    if (client.isReady()) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is alive!');
+    } else {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.end('Bot is not ready');
+    }
+}).listen(HEALTH_PORT, () => {
+    console.log(`💓 헬스체크 서버 실행 중: 포트 ${HEALTH_PORT}`);
+});
+
 export {supabase, client} ;
