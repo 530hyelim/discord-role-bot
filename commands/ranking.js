@@ -1,16 +1,14 @@
 import 'dotenv/config';
-import { supabase, client } from '../index.js';
+import { pool, client } from '../index.js';
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { sendError } from '../utils/commonFunc.js';
 
 export async function getRankString(guildId) {
-    const { data: ranking, error: qErr } = await supabase
-        .from('users')
-        .select('*')
-        .eq('guild_id', guildId)
-        .order('total_score', { ascending: false });
+    const [ranking] = await pool.query(
+        'SELECT * FROM users WHERE guild_id = ? ORDER BY total_score DESC',
+        [guildId]
+    );
 
-    if (qErr) throw new Error(qErr);
     if (!ranking || ranking.length === 0) throw new Error('랭킹 데이터가 없습니다.');
 
     const guild = client.guilds.cache.get(guildId);

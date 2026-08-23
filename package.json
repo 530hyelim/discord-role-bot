@@ -12,9 +12,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.95.3",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
+    "mysql2": "^3.23.4",
     "node-cron": "^4.2.1"
   }
 }

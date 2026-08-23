@@ -9,7 +9,7 @@ import { handleSetupInteraction } from './commands/setup.js';
 import { handleReportInteraction } from './commands/report.js';
 import { handleBroadcastModal } from './commands/announce.js';
 import { handleVoiceStateUpdate } from './services/voiceTracker.js';
-import { createClient } from '@supabase/supabase-js';
+import { pool } from './utils/db.js';
 import { Client, GatewayIntentBits, Partials, Collection, REST, Routes, ChannelType, PermissionFlagsBits, OverwriteType } from 'discord.js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -31,7 +31,6 @@ client.slashCommands = new Collection();
 
 // 설정
 const TOKEN = process.env.TOKEN || 3000;
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 client.once('clientReady', async () => {
     console.log(`🤖 로그인 완료: ${client.user.tag} (PORT: ${process.env.PORT})`);
@@ -270,4 +269,4 @@ http.createServer((req, res) => {
     console.log(`💓 헬스체크 서버 실행 중: 포트 ${HEALTH_PORT}`);
 });
 
-export {supabase, client} ;
+export {pool, client} ;

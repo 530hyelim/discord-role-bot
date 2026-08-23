@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { supabase } from '../index.js';
+import { pool } from '../index.js';
 import { ActionRowBuilder, StringSelectMenuBuilder, SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { setUserCollector, clearUserCollector, sendError, upsertUserScore } from '../utils/commonFunc.js';
 
@@ -68,8 +68,7 @@ export default {
  * 1단계: 카테고리 선택
  */
 async function showCategorySelect(modalInteraction, authorId, questionText, answerText) {
-    const { data: categories, error: catError } = await supabase.from('category').select('*');
-    if (catError) throw new Error(catError);
+    const [categories] = await pool.query('SELECT * FROM category');
     if (!categories?.length) throw new Error("카테고리가 없습니다!");
 
     const categoryMenu = new ActionRowBuilder().addComponents(
@@ -126,8 +125,7 @@ async function showCategorySelect(modalInteraction, authorId, questionText, answ
  * 2단계: 채점기준 선택 후 저장
  */
 async function showCriteriaSelect(selectInteraction, channel, authorId, selectedCategory, questionText, answerText) {
-    const { data: criteria, error: critError } = await supabase.from('criteria').select('crit_no, crit_name, description');
-    if (critError) throw new Error(critError);
+    const [criteria] = await pool.query('SELECT crit_no, crit_name, description FROM criteria');
     if (!criteria?.length) throw new Error("채점기준이 없습니다!");
 
     const criteriaMenu = new ActionRowBuilder().addComponents(
@@ -174,25 +172,15 @@ async function showCriteriaSelect(selectInteraction, channel, authorId, selected
             const selectedCriteria = criteriaInteraction.values[0];
             const authorUsername = criteriaInteraction.user.username;
 
-            const { data, error } = await supabase
-                .from('questions')
-                .insert([{
-                    category: selectedCategory,
-                    question_text: questionText.replace(/```/g, ''),
-                    answer_text: answerText,
-                    answer_type: selectedCriteria,
-                    author_username: authorUsername
-                }])
-                .select();
+            const [insertResult] = await pool.query(
+                `INSERT INTO questions (category, question_text, answer_text, answer_type, author_username)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [selectedCategory, questionText.replace(/```/g, ''), answerText, selectedCriteria, authorUsername]
+            );
+            if (!insertResult?.insertId) throw new Error("문제 추가에 실패했습니다!");
 
-            if (error) throw new Error(error.message);
-            if (!data?.length) throw new Error("문제 추가에 실패했습니다!");
-
-            const { data: categoryData } = await supabase
-                .from('category')
-                .select('add_point')
-                .eq('cate_no', selectedCategory)
-                .single();
+            const [categoryRows] = await pool.query('SELECT add_point FROM category WHERE cate_no = ?', [selectedCategory]);
+            const categoryData = categoryRows[0];
 
             let sendMessage = "문제가 성공적으로 추가되었습니다! ";
             const displayName = member?.displayName ?? criteriaInteraction.user.username;

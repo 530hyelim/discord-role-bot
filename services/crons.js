@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { client } from '../index.js';
-import { supabase } from '../index.js';
+import { pool } from '../index.js';
 import { sendError, getAllGuildConfigs } from '../utils/commonFunc.js';
 import { getRankString } from '../commands/ranking.js';
 import { getWeeklyStudyTime, getWeeklyStudyReport, saveAllActiveSessions } from './voiceTracker.js';
@@ -21,13 +21,10 @@ export function startCrons() {
                     const result = await getRankString(config.guild_id);
                     await channel.send(result);
 
-                    const { error } = await supabase
-                        .from('users')
-                        .update({ total_score: 0 })
-                        .eq('guild_id', config.guild_id)
-                        .neq('total_score', 0);
-                    
-                    if (error) throw new Error(error);
+                    await pool.query(
+                        'UPDATE users SET total_score = 0 WHERE guild_id = ? AND total_score != 0',
+                        [config.guild_id]
+                    );
                 } catch (err) {
                     await sendError(`[점수 초기화] guild_id: ${config.guild_id} (${config.guild_name || '-'})\n${err?.stack || err}`, config.guild_id);
                 }

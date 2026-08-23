@@ -1,18 +1,13 @@
 import 'dotenv/config';
 import { EmbedBuilder, ChannelType, PermissionFlagsBits, OverwriteType, parseEmoji } from 'discord.js';
-import { supabase, client } from '../index.js';
+import { pool, client } from '../index.js';
 import { sendError, getGuildConfig, upsertGuildConfig, clearGuildConfigCache } from '../utils/commonFunc.js';
 
 const reactionRolesCache = new Map();
 
 async function getReactionRolesData(guildId) {
-    const { data, error } = await supabase
-        .from('reaction_roles')
-        .select('emoji, role_id, description')
-        .eq('guild_id', guildId);
-
-    if (error) throw error;
-    return data || [];
+    const [rows] = await pool.query('SELECT emoji, role_id, description FROM reaction_roles WHERE guild_id = ?', [guildId]);
+    return rows || [];
 }
 
 async function getReactionRoles(guildId) {
