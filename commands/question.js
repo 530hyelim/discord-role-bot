@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { supabase, client } from '../index.js';
+import { pool, client } from '../index.js';
 import { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { setUserCollector, clearUserCollector, sendError, getCriteriaHintForDisplay } from '../utils/commonFunc.js';
 
@@ -45,11 +45,8 @@ export default {
         try {
             const current = getCorrectAnswer();
             if (current) {
-                const { data: cat } = await supabase
-                    .from('category')
-                    .select('question_valid_seconds')
-                    .eq('cate_no', current.category)
-                    .single();
+                const [catRows] = await pool.query('SELECT question_valid_seconds FROM category WHERE cate_no = ?', [current.category]);
+                const cat = catRows[0];
 
                 const validSeconds = cat?.question_valid_seconds;
                 if (validSeconds != null) {
@@ -75,9 +72,8 @@ export default {
             }
 
             // 카테고리 선택
-            const { data: categories, error: categoryError } = await supabase.from('category').select('*');
-            
-            if (categoryError) throw new Error(categoryError);
+            const [categories] = await pool.query('SELECT * FROM category');
+
             if (!categories || categories.length === 0) throw new Error("카테고리가 없습니다!");
 
             const categoryOptions = categories.map((category) => {
@@ -128,12 +124,8 @@ export default {
                     const selectedCategory = selectInteraction.values[0];
 
                     // 해당 카테고리의 문제 가져오기
-                    const { data: questions, error: qErr } = await supabase
-                        .from('questions')
-                        .select('*')
-                        .eq('category', selectedCategory);
+                    const [questions] = await pool.query('SELECT * FROM questions WHERE category = ?', [selectedCategory]);
 
-                    if (qErr) throw new Error(qErr);
                     if (!questions || questions.length === 0) {
                         await selectInteraction.update({ content: '문제가 없습니다. `/register` 를 통해 문제를 등록해주세요!', components: [] });
                         return;
@@ -150,11 +142,8 @@ export default {
                         channelId,
                     };
 
-                    const { data: cat } = await supabase
-                        .from('category')
-                        .select('question_valid_seconds')
-                        .eq('cate_no', selectedCategory)
-                        .single();
+                    const [catRows2] = await pool.query('SELECT question_valid_seconds FROM category WHERE cate_no = ?', [selectedCategory]);
+                    const cat = catRows2[0];
                     if (questionExpiryTimeoutId) clearTimeout(questionExpiryTimeoutId);
                     const issuedAt = correctAnswer.issuedAt;
                     if (cat?.question_valid_seconds != null) {

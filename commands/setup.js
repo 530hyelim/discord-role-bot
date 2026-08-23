@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder,
     RoleSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, StringSelectMenuBuilder, parseEmoji
 } from 'discord.js';
-import { supabase } from '../index.js';
+import { pool } from '../index.js';
 import { sendError, getGuildConfig, upsertGuildConfig, clearGuildConfigCache } from '../utils/commonFunc.js';
 import { updateRoleMessage, clearReactionRolesCache } from '../services/reactionRoles.js';
 
@@ -164,11 +164,7 @@ export async function handleSetupInteraction(interaction) {
             
             await interaction.deferUpdate();
 
-            await supabase
-                .from('reaction_roles')
-                .delete()
-                .eq('guild_id', guildId)
-                .eq('emoji', emoji);
+            await pool.query('DELETE FROM reaction_roles WHERE guild_id = ? AND emoji = ?', [guildId, emoji]);
 
             clearReactionRolesCache(guildId);
             await updateRoleMessage(guildId);
@@ -209,14 +205,11 @@ export async function handleSetupInteraction(interaction) {
 
             await interaction.deferReply({ flags: 64 });
 
-            await supabase
-                .from('reaction_roles')
-                .upsert({
-                    guild_id: guildId,
-                    emoji: emoji,
-                    role_id: tempData.roleId,
-                    description: description || tempData.roleName
-                }, { onConflict: 'guild_id,emoji' });
+            await pool.query(
+                `INSERT INTO reaction_roles (guild_id, emoji, role_id, description) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), description = VALUES(description)`,
+                [guildId, emoji, tempData.roleId, description || tempData.roleName]
+            );
 
             interaction.client.setupTempData.delete(`${guildId}_role`);
             clearReactionRolesCache(guildId);
@@ -282,11 +275,8 @@ async function showChannelMenu(interaction) {
 
 async function showRoleMenu(interaction) {
     const guildId = interaction.guild.id;
-    
-    const { data } = await supabase
-        .from('reaction_roles')
-        .select('emoji, role_id, description')
-        .eq('guild_id', guildId);
+
+    const [data] = await pool.query('SELECT emoji, role_id, description FROM reaction_roles WHERE guild_id = ?', [guildId]);
 
     let roleList = '등록된 리액션 역할이 없습니다.';
     if (data && data.length > 0) {
@@ -358,11 +348,8 @@ async function showEmojiInputModal(interaction, roleName) {
 
 async function showRoleRemoveMenu(interaction) {
     const guildId = interaction.guild.id;
-    
-    const { data } = await supabase
-        .from('reaction_roles')
-        .select('emoji, role_id, description')
-        .eq('guild_id', guildId);
+
+    const [data] = await pool.query('SELECT emoji, role_id, description FROM reaction_roles WHERE guild_id = ?', [guildId]);
 
     if (!data || data.length === 0) {
         return await interaction.update({

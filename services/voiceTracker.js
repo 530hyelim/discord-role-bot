@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import { supabase } from '../index.js';
+import { pool } from '../index.js';
 import { sendError, getGuildConfig } from '../utils/commonFunc.js';
 
 const voiceSessions = new Map();
@@ -47,31 +47,19 @@ async function saveStudyTime(guildId, userId, username, durationMs) {
         if (durationSeconds < 1) return;
         const today = new Date().toISOString().split('T')[0];
 
-        const { data: existing, error: selectError } = await supabase
-            .from('study_time')
-            .select('duration_seconds')
-            .eq('guild_id', guildId)
-            .eq('user_id', userId)
-            .eq('study_date', today)
-            .single();
-
-        if (selectError && selectError.code !== 'PGRST116') throw selectError;
+        const [rows] = await pool.query(
+            'SELECT duration_seconds FROM study_time WHERE guild_id = ? AND user_id = ? AND study_date = ?',
+            [guildId, userId, today]
+        );
+        const existing = rows[0];
         const totalSeconds = (existing?.duration_seconds || 0) + durationSeconds;
 
-        const { data, error: upsertError } = await supabase
-            .from('study_time')
-            .upsert({ 
-                guild_id: guildId,
-                user_id: userId, 
-                username: username,
-                study_date: today,
-                duration_seconds: totalSeconds},
-                { onConflict: 'guild_id,user_id,study_date' }
-            )
-            .select();
+        await pool.query(
+            `INSERT INTO study_time (guild_id, user_id, username, study_date, duration_seconds) VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE username = VALUES(username), duration_seconds = VALUES(duration_seconds)`,
+            [guildId, userId, username, today, totalSeconds]
+        );
 
-        if (upsertError) throw upsertError;
-        
     } catch (err) {
         await sendError(`⚠️ Study time save error: ${err?.stack || err}`, guildId);
     }
@@ -86,14 +74,10 @@ export async function getWeeklyStudyTime(guildId) {
         const startDate = weekAgo.toISOString().split('T')[0];
         const endDate = today.toISOString().split('T')[0];
 
-        const { data, error } = await supabase
-            .from('study_time')
-            .select('user_id, username, duration_seconds')
-            .eq('guild_id', guildId)
-            .gte('study_date', startDate)
-            .lte('study_date', endDate);
-
-        if (error) throw error;
+        const [data] = await pool.query(
+            'SELECT user_id, username, duration_seconds FROM study_time WHERE guild_id = ? AND study_date >= ? AND study_date <= ?',
+            [guildId, startDate, endDate]
+        );
 
         const userTotals = new Map();
         for (const row of data || []) {

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { client } from '../index.js';
-import { supabase } from '../index.js';
+import { pool } from './db.js';
 import { getCorrectAnswer, resetCorrectAnswer } from '../commands/question.js';
 
 const userCollectors = new Map();
@@ -10,31 +10,27 @@ export async function getGuildConfig(guildId) {
     if (guildConfigCache.has(guildId)) {
         return guildConfigCache.get(guildId);
     }
-    const { data, error } = await supabase
-        .from('guilds')
-        .select('*')
-        .eq('guild_id', guildId)
-        .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
+    const [rows] = await pool.query('SELECT * FROM guilds WHERE guild_id = ?', [guildId]);
+    const data = rows[0] ?? null;
     if (data) guildConfigCache.set(guildId, data);
     return data;
 }
 
 export async function upsertGuildConfig(guildId, guildName, config = {}) {
-    const { data, error } = await supabase
-        .from('guilds')
-        .upsert({
-            guild_id: guildId,
-            guild_name: guildName,
-            ...config
-        }, { onConflict: 'guild_id' })
-        .select()
-        .single();
+    const fields = { guild_name: guildName, ...config };
+    const columns = ['guild_id', ...Object.keys(fields)];
+    const values = [guildId, ...Object.values(fields)];
+    const placeholders = columns.map(() => '?').join(', ');
+    const updateClause = Object.keys(fields).map((k) => `${k} = VALUES(${k})`).join(', ');
 
-    if (error) throw error;
-    
-    guildConfigCache.set(guildId, data);
+    await pool.query(
+        `INSERT INTO guilds (${columns.join(', ')}) VALUES (${placeholders})
+         ON DUPLICATE KEY UPDATE ${updateClause}`,
+        values
+    );
+
+    guildConfigCache.delete(guildId);
+    const data = await getGuildConfig(guildId);
     return data;
 }
 
@@ -47,12 +43,8 @@ export function clearGuildConfigCache(guildId) {
 }
 
 export async function getAllGuildConfigs() {
-    const { data, error } = await supabase
-        .from('guilds')
-        .select('*');
-
-    if (error) throw error;
-    return data || [];
+    const [rows] = await pool.query('SELECT * FROM guilds');
+    return rows || [];
 }
 
 export function setUserCollector(userId, collector) {
@@ -68,11 +60,8 @@ export function clearUserCollector(userId) {
 /** 문제 출제 시 표시할 채점 기준 문구 */
 export async function getCriteriaHintForDisplay(answerType) {
     const type = Math.min(5, Math.max(1, parseInt(answerType, 10) || 1));
-    const { data: critRow } = await supabase
-        .from('criteria')
-        .select('crit_name, criteria_hint')
-        .eq('crit_no', type)
-        .single();
+    const [rows] = await pool.query('SELECT crit_name, criteria_hint FROM criteria WHERE crit_no = ?', [type]);
+    const critRow = rows[0];
     const name = critRow?.crit_name?.trim() || '';
     const hintText = (critRow?.criteria_hint && critRow.criteria_hint.trim()) ? critRow.criteria_hint.trim() : '';
     if (!name || !hintText) return '';
@@ -156,12 +145,9 @@ export async function handleCommand(message) {
             resetCorrectAnswer();
 
             // 카테고리의 answer_point 값 조회
-            const { data: categoryData } = await supabase
-                .from('category')
-                .select('answer_point')
-                .eq('cate_no', correctAnswer.category)
-                .single();
-            
+            const [categoryRows] = await pool.query('SELECT answer_point FROM category WHERE cate_no = ?', [correctAnswer.category]);
+            const categoryData = categoryRows[0];
+
             const answerPoint = categoryData?.answer_point;
             const displayName = message.member?.displayName || message.author.username;
             var sendMessage = `${displayName}님 정답! `;
@@ -200,25 +186,23 @@ export async function sendError(content, guildId = null) {
 }
 
 export async function upsertUserScore(guildId, userId, username, score) {
-    const { data: userRows, error: selectError } = await supabase
-        .from('users')
-        .select('total_score')
-        .eq('guild_id', guildId)
-        .eq('user_id', userId)
-        .single();
+    const [rows] = await pool.query(
+        'SELECT total_score FROM users WHERE guild_id = ? AND user_id = ?',
+        [guildId, userId]
+    );
+    const existing = rows[0];
 
-    if (selectError && selectError.code !== 'PGRST116') throw selectError;
-
-    if (userRows && userRows.total_score !== undefined) {
-        score += userRows.total_score;
+    if (existing && existing.total_score !== undefined) {
+        score += existing.total_score;
     }
 
-    const { error: upsertError } = await supabase
-        .from('users')
-        .upsert(
-            { guild_id: guildId, user_id: userId, username, total_score: score },
-            { onConflict: 'guild_id,user_id' }
+    try {
+        await pool.query(
+            `INSERT INTO users (guild_id, user_id, username, total_score) VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE username = VALUES(username), total_score = VALUES(total_score)`,
+            [guildId, userId, username, score]
         );
-
-    if (upsertError) throw new Error('점수 업데이트 실패..');
+    } catch (err) {
+        throw new Error('점수 업데이트 실패..');
+    }
 }
