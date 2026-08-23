@@ -34,7 +34,7 @@ export function startCrons() {
         } catch (err) {
             await sendError(`점수 초기화 중 예외 발생 : ${err?.stack || err}`);
         }
-    });
+    }, { timezone: 'Asia/Seoul' });
 
     // 매일 자정 직전 - 모든 활성 세션 저장
     cron.schedule('59 59 23 * * *', async () => {
@@ -43,7 +43,7 @@ export function startCrons() {
         } catch (err) {
             await sendError(`자정 세션 저장 오류: ${err?.stack || err}`);
         }
-    });
+    }, { timezone: 'Asia/Seoul' });
 
     // 매주 일요일 23시 0분 - 각 길드별 주간 리포트
     cron.schedule('0 23 * * 0', async () => {
@@ -69,5 +69,5 @@ export function startCrons() {
         } catch (err) {
             await sendError(`주간 독서실 리포트 오류: ${err?.stack || err}`);
         }
-    });
+    }, { timezone: 'Asia/Seoul' });
 }
