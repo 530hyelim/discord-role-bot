@@ -7,6 +7,9 @@ services:
 
     container_name: goofy-bot
 
+    ports:
+      - "3000:3000"
+
     env_file:
       - .env
 
